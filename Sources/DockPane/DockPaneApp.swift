@@ -129,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let dockMonitor = DockMonitor()
     /// Panels with fewer windows than this are not shown. Change here to adjust the threshold.
-    private let panel = FloatingPanelController(minimumWindows: 2)
+    private let panel = FloatingPanelController(minimumWindows: 1)
     private var activationObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
