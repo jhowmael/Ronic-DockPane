@@ -11,7 +11,7 @@ final class DockMonitor {
     /// Main thread. Called on every mouse move, so listeners must stay cheap.
     var onPointerMoved: (() -> Void)?
 
-    private let queryInterval: TimeInterval = 0.09
+    private let queryInterval: TimeInterval = 0.05
     private let edgeStripWidth: CGFloat = 220
 
     private var eventMonitor: Any?
@@ -84,7 +84,7 @@ final class DockMonitor {
         let token = generation
         let axPoint = CGPoint(x: point.x, y: primaryScreenTop - point.y)
 
-        AccessibilityHelper.queue.async { [weak self] in
+        AccessibilityHelper.hitTestQueue.async { [weak self] in
             let hit = AccessibilityHelper.dockItem(at: axPoint)
             DispatchQueue.main.async {
                 self?.finishQuery(hit, token: token)

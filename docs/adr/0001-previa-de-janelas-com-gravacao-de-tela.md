@@ -19,7 +19,8 @@ permissão de Gravação de Tela.
 1. O painel passa a exibir uma miniatura por janela, em cartões (até 4 colunas com o Dock embaixo,
    uma coluna com o Dock nas laterais), com o título acima.
 2. A captura usa **ScreenCaptureKit** (`SCScreenshotManager`, uma imagem por janela, sob demanda).
-   Nada de stream contínuo, nada em disco: as imagens vivem na memória enquanto o painel está aberto.
+   Nada de stream contínuo, nada em disco: as imagens vivem só na memória. Desde a 0.4.0, a última
+   miniatura de cada janela aberta fica guardada até a janela fechar (veja a ADR 0002).
 3. A permissão de Gravação de Tela é **opcional**, mas o layout de cartões é sempre o padrão. Sem
    a permissão, cada cartão mostra o ícone do app e o painel exibe um botão para ativar as prévias.
    A lista só de títulos ficou restrita ao macOS 13, que não tem a API de captura. A Acessibilidade
@@ -51,7 +52,8 @@ permissão de Gravação de Tela.
 - O README deixa de afirmar que o app nunca captura a tela; a seção de privacidade descreve o que
   é capturado, onde fica e que a permissão é opcional.
 - A meta original de baixo consumo de memória fica mais difícil: cada miniatura (cerca de
-  440×276 px) ocupa algumas centenas de KB enquanto o painel está aberto, e é descartada ao fechar.
+  440×276 px) ocupa algumas centenas de KB. Desde a 0.4.0 ela fica em memória enquanto a janela
+  existir, e é descartada quando a janela fecha ou o app sai.
 - Com assinatura ad-hoc, o macOS pode pedir de novo a Gravação de Tela a cada versão baixada. O
   `scripts/dev-signing.sh` mantém a permissão nas builds locais.
 - Janelas minimizadas podem não ter captura; nesse caso o cartão mostra o ícone do app, esmaecido.

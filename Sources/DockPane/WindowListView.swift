@@ -11,6 +11,8 @@ final class PanelModel: ObservableObject {
     @Published var showPreviews: Bool
     /// Cards are shown but Screen Recording is missing, so they only have placeholders.
     @Published var needsPermission: Bool
+    /// Where each card is drawn (top-left origin, in the panel), for the close animation. Not published.
+    var cardFrames: [Int: CGRect] = [:]
 
     init(app: DockedApp, windows: [AppWindow], showPreviews: Bool, needsPermission: Bool = false) {
         self.app = app
@@ -42,12 +44,14 @@ struct WindowListView: View {
             } else if model.showPreviews {
                 // Each card already shows the app icon and the window title, so no header here.
                 cards
+                    .onPreferenceChange(CardFramesKey.self) { frames in model.cardFrames = frames }
             } else {
                 header
                 Divider().padding(.horizontal, 8)
                 list
             }
         }
+        .coordinateSpace(name: CardFramesKey.space)
     }
 
     private var header: some View {
@@ -82,7 +86,7 @@ struct WindowListView: View {
             ForEach(rows.indices, id: \.self) { index in
                 HStack(alignment: .top, spacing: 6) {
                     ForEach(rows[index]) { window in
-                        PreviewCard(window: window, app: model.app,
+                        PreviewCard(window: window, icon: model.app.icon,
                                     image: model.previews[window.id], onSelect: onSelect, onClose: onClose)
                     }
                 }
@@ -131,6 +135,15 @@ struct WindowListView: View {
             }
         }
         .frame(width: 280)
+    }
+}
+
+/// Collects each card's frame in the panel, keyed by window id.
+struct CardFramesKey: PreferenceKey {
+    static let space = "panel"
+    static let defaultValue: [Int: CGRect] = [:]
+    static func reduce(value: inout [Int: CGRect], nextValue: () -> [Int: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
     }
 }
 
@@ -201,22 +214,28 @@ private struct AppCard: View {
     }
 }
 
-/// One window as a thumbnail with its title above. Highlighted while the pointer is over it.
-private struct PreviewCard: View {
+/// One window as a thumbnail with its title above. Highlighted while the pointer is over it,
+/// or, in the window switcher, while it is the selected one.
+struct PreviewCard: View {
     let window: AppWindow
-    let app: DockedApp
+    let icon: NSImage
     let image: NSImage?
     let onSelect: (AppWindow) -> Void
     let onClose: (AppWindow) -> Void
+    /// Set by the window switcher, where the keyboard decides the highlight. `nil` follows the pointer.
+    var isSelected: Bool? = nil
+    var onHover: () -> Void = {}
 
     @State private var isHovered = false
+
+    private var isHighlighted: Bool { isSelected ?? isHovered }
 
     private var size: CGSize { WindowPreviewProvider.thumbnailSize }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Image(nsImage: app.icon)
+                Image(nsImage: icon)
                     .resizable()
                     .frame(width: 14, height: 14)
                 Text(window.title)
@@ -236,7 +255,7 @@ private struct PreviewCard: View {
                         .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
                 )
         }
-        .foregroundStyle(isHovered ? Color.white : Color.primary)
+        .foregroundStyle(isHighlighted ? Color.white : Color.primary)
         .padding(8)
         .overlay(alignment: .topLeading) {
             if isHovered {
@@ -254,10 +273,17 @@ private struct PreviewCard: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isHovered ? Color.accentColor.opacity(0.85) : Color.clear)
+                .fill(isHighlighted ? Color.accentColor.opacity(0.85) : Color.clear)
         )
         .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
+        .background(GeometryReader { proxy in
+            Color.clear.preference(key: CardFramesKey.self,
+                                   value: [window.id: proxy.frame(in: .named(CardFramesKey.space))])
+        })
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering { onHover() }
+        }
         .onTapGesture { onSelect(window) }
     }
 
@@ -270,7 +296,7 @@ private struct PreviewCard: View {
                 .opacity(window.isMinimized ? 0.55 : 1)
         } else {
             // Not captured (yet, or the window cannot be captured): show the app icon.
-            Image(nsImage: app.icon)
+            Image(nsImage: icon)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 48, height: 48)

@@ -45,6 +45,8 @@ struct DockItemHit {
 /// Every Accessibility call goes through here: AX can block for a while, so never call it on the main thread.
 enum AccessibilityHelper {
     static let queue = DispatchQueue(label: "io.github.jhowmael.dockpane.accessibility", qos: .userInitiated)
+    /// Dock hit tests get their own queue, so they never wait behind a window list being read.
+    static let hitTestQueue = DispatchQueue(label: "io.github.jhowmael.dockpane.hittest", qos: .userInteractive)
 
     static var isTrusted: Bool { AXIsProcessTrusted() }
 
@@ -135,6 +137,33 @@ enum AccessibilityHelper {
         return result
     }
 
+    /// Windows of several apps, read in parallel so one slow app does not hold up the rest.
+    static func windows(forApps pids: [pid_t]) -> [pid_t: [AppWindow]] {
+        let box = ResultBox()
+        DispatchQueue.concurrentPerform(iterations: pids.count) { index in
+            box.set(windows(for: pids[index]), for: pids[index])
+        }
+        return box.all
+    }
+
+    /// Collects results written from several threads.
+    private final class ResultBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var byPID: [pid_t: [AppWindow]] = [:]
+
+        func set(_ windows: [AppWindow], for pid: pid_t) {
+            lock.lock()
+            byPID[pid] = windows
+            lock.unlock()
+        }
+
+        var all: [pid_t: [AppWindow]] {
+            lock.lock()
+            defer { lock.unlock() }
+            return byPID
+        }
+    }
+
     /// Presses the window's own close button, so the app closes it as if the user clicked the red button.
     static func close(_ window: AppWindow) {
         guard let button: AXUIElement = attribute(window.element, "AXCloseButton") else { return }
@@ -146,7 +175,13 @@ enum AccessibilityHelper {
         if window.isMinimized {
             AXUIElementSetAttributeValue(window.element, "AXMinimized" as CFString, kCFBooleanFalse)
         }
+        AXUIElementSetAttributeValue(window.element, "AXMain" as CFString, kCFBooleanTrue)
         AXUIElementPerformAction(window.element, "AXRaise" as CFString)
+        // Since macOS 14 a background app may be refused when it activates another one; through Accessibility
+        // the app is brought to the front either way.
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.25)
+        AXUIElementSetAttributeValue(app, "AXFrontmost" as CFString, kCFBooleanTrue)
 
         DispatchQueue.main.async {
             guard let app = NSRunningApplication(processIdentifier: pid) else { return }

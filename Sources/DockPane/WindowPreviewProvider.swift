@@ -7,6 +7,13 @@ import ScreenCaptureKit
 /// This is the only part of DockPane that needs the Screen Recording permission. Without it
 /// (or before macOS 14, which introduced the one-shot screenshot API) the panel falls back to a
 /// plain list of titles.
+/// One window to capture. `key` is how the caller finds the thumbnail again.
+struct PreviewRequest {
+    let key: Int
+    let pid: pid_t
+    let window: AppWindow
+}
+
 enum WindowPreviewProvider {
     /// Longest side of a thumbnail in points; captured at 2x.
     static let thumbnailSize = CGSize(width: 220, height: 138)
@@ -30,27 +37,59 @@ enum WindowPreviewProvider {
         NSWorkspace.shared.open(url)
     }
 
-    /// Thumbnails keyed by `AppWindow.id`. Windows that cannot be captured are simply missing.
-    static func previews(for windows: [AppWindow], pid: pid_t) async -> [Int: NSImage] {
-        guard #available(macOS 14.0, *), isAuthorized else { return [:] }
+    /// The last thumbnail of each window, by window ID. It is shown at once the next time a panel opens, and it
+    /// stands in for minimized windows, which the system no longer draws. Memory only, pruned to live windows.
+    @MainActor private static var cache: [CGWindowID: NSImage] = [:]
+
+    /// Captures thumbnails and hands each one to `deliver` as soon as it is ready (cached images first).
+    /// Windows that cannot be captured are skipped.
+    static func previews(for requests: [PreviewRequest], deliver: @escaping @MainActor (Int, NSImage) -> Void) async {
+        guard #available(macOS 14.0, *), isAuthorized, !requests.isEmpty else { return }
 
         guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false) else {
-            return [:]
+            return
         }
-        let candidates = content.windows.filter {
-            $0.owningApplication?.processID == pid && $0.windowLayer == 0
-        }
-        let matches = match(windows, to: candidates)
 
-        return await withTaskGroup(of: (Int, NSImage?).self) { group in
-            for (id, scWindow) in matches {
-                group.addTask { (id, await capture(scWindow)) }
+        // Match per app, since `AppWindow.id` is only unique inside one app.
+        var found: [(key: Int, minimized: Bool, window: SCWindow)] = []
+        for (pid, group) in Dictionary(grouping: requests, by: \.pid) {
+            let candidates = content.windows.filter {
+                $0.owningApplication?.processID == pid && $0.windowLayer == 0
             }
-            var result: [Int: NSImage] = [:]
-            for await (id, image) in group {
-                if let image { result[id] = image }
+            let matches = match(group.map(\.window), to: candidates)
+            for request in group {
+                if let scWindow = matches[request.window.id] {
+                    found.append((request.key, request.window.isMinimized, scWindow))
+                }
             }
-            return result
+        }
+
+        let targets = found
+        let live = Set(content.windows.map(\.windowID))
+        let cachedKeys: Set<Int> = await MainActor.run {
+            cache = cache.filter { live.contains($0.key) }
+            var keys = Set<Int>()
+            for target in targets {
+                if let image = cache[target.window.windowID] {
+                    deliver(target.key, image)
+                    keys.insert(target.key)
+                }
+            }
+            return keys
+        }
+
+        await withTaskGroup(of: (Int, CGWindowID, NSImage?).self) { group in
+            // A minimized window is not drawn any more: keep the image taken while it was on screen.
+            for target in targets where !(target.minimized && cachedKeys.contains(target.key)) {
+                group.addTask { (target.key, target.window.windowID, await capture(target.window)) }
+            }
+            for await (key, windowID, image) in group {
+                guard let image else { continue }
+                await MainActor.run {
+                    cache[windowID] = image
+                    deliver(key, image)
+                }
+            }
         }
     }
 

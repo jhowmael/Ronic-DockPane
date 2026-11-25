@@ -5,7 +5,7 @@
 <h1 align="center">Ronic DockPane</h1>
 
 <p align="center">
-  <b>Hover an app in the Dock and see a live preview of each open window, like the Windows taskbar, then jump straight to one.</b><br>
+  <b>Hover an app in the Dock and see a live preview of each open window, like the Windows taskbar, then jump straight to one. Or press ⌥Tab to switch between windows, like Alt+Tab.</b><br>
   Native Swift · no third-party dependencies · menu bar only
 </p>
 
@@ -18,6 +18,7 @@
 <p align="center">
   <a href="https://github.com/jhowmael/Ronic-DockPane/releases">All releases</a> ·
   <a href="#installation">Installation</a> ·
+  <a href="#window-switcher-tab">⌥Tab switcher</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#building">Build</a>
 </p>
@@ -54,17 +55,39 @@
 |---|---|
 | **Accessibility** status | Shows whether the permission is granted. **Grant permission…** appears when it isn't. |
 | **Window previews** | Shows whether thumbnails are on. **Enable previews…** opens the Screen Recording pane; **Already enabled: relaunch** restarts the app to apply it. Needs macOS 14 or later. |
+| **Window switcher (⌥Tab)** (*Alternador de janelas*) | Turns the ⌥Tab window switcher on or off. On by default. |
 | **Launch at login** (*Iniciar com o macOS*) | Adds or removes Ronic DockPane from the system's login items (`SMAppService`). |
 | **Quit** (*Sair*) | Quits Ronic DockPane. |
+
+## Window switcher (⌥Tab)
+
+<p align="center">
+  <img src="docs/switcher.png" alt="Ronic DockPane window switcher with a thumbnail of every window of every app" width="860">
+</p>
+
+The ⌘Tab built into macOS switches between **apps**. ⌥Tab in Ronic DockPane switches between **windows**, like Alt+Tab on Windows. It shows every window of every app as a card with its thumbnail, the most recently used first.
+
+| Keys | What they do |
+|---|---|
+| Hold **⌥** and press **Tab** | Opens the switcher and moves to the next window. Keep pressing Tab to go further. |
+| **⌥⇧Tab**, **← → ↑ ↓** | Move backwards, or around the grid. |
+| Let go of **⌥** | Switches to the selected window (unminimizing it if needed). |
+| **Esc** | Cancels. |
+| A quick **⌥Tab** tap | Jumps straight back to the previous window, without showing the panel. |
+
+You can also click a card, or close a window with its ✕. Turn the switcher off in the menu bar menu.
+
+**With Ronic MacToWindows:** its Alt+Tab (for apps) also uses ⌥Tab. While this switcher is on, MacToWindows steps aside automatically and gets the shortcut back when Ronic DockPane quits or the switcher is turned off. The two apps coordinate through a system notification ([ADR 0002](docs/adr/0002-alternador-de-janelas-com-option-tab.md)). To use another key with ⌥ instead of Tab, run `defaults write io.github.jhowmael.ronicdockpane switcherKeyCode -int 50` (50 is the key to the left of 1) and relaunch.
 
 ## How it works
 
 1. A global `mouseMoved` monitor watches the pointer. Nothing else runs while it stays away from the Dock.
-2. When the pointer enters the strip along the Dock's edge (bottom, left or right, read from the Dock's settings), Ronic DockPane asks the Accessibility API which Dock icon is under it. At most one query runs every 90 ms, off the main thread.
-3. The icon is matched to a running app, and its windows are read through `kAXWindowsAttribute`. Only standard windows with a title are kept, and minimized windows are included.
-4. A floating panel opens next to the icon. It doesn't take focus from the app you're using.
+2. When the pointer enters the strip along the Dock's edge (bottom, left or right, read from the Dock's settings), Ronic DockPane asks the Accessibility API which Dock icon is under it. At most one query runs every 50 ms, off the main thread, on its own queue.
+3. The icon is matched to a running app, and its windows are read through `kAXWindowsAttribute`. Only standard windows with a title are kept, and minimized windows are included. When the pointer reaches the Dock, the window lists of all apps are read in parallel, so hovering an icon shows its panel at once; the list is refreshed in the background on every hover.
+4. A floating panel fades in next to the icon. It doesn't take focus from the app you're using. Moving to another icon glides the panel there in 0.14 s, quick at the start so it keeps up with the pointer.
 5. With Screen Recording granted, a thumbnail of each window is captured with ScreenCaptureKit (one still image per window, only while the panel is open). The panel appears immediately with placeholders and the thumbnails fill in as they arrive. On macOS 13 the panel shows a plain list of titles instead.
-6. Hovering a card shows a red ✕ that closes that window for real (it presses the window's own close button, so the app may still ask to save). Clicking a window unminimizes it if needed, raises it, activates its app, and closes the panel. The panel also closes about 250 ms after the pointer leaves both the icon and the panel, which gives you time to move between them.
+6. Hovering a card shows a red ✕ that closes that window for real (it presses the window's own close button, so the app may still ask to save). Clicking a window unminimizes it if needed, raises it, activates its app, and closes the panel. The panel also closes about 250 ms after the pointer leaves both the icon and the panel, which gives you time to move between them. It then shrinks smoothly into the Dock icon, as if pulled in; a window closed with ✕ goes the same way. With **Reduce motion** on, both just fade.
+7. **⌥Tab** goes through a keyboard event tap (it needs the same Accessibility permission). The windows of every app are ordered by how they are stacked on screen, which is the order you last used them.
 
 ## Settings
 
@@ -78,7 +101,8 @@ With `0`, an app that is still running with no windows (you closed them with the
 
 ## Privacy
 
-* Thumbnails are the only thing that uses **Screen Recording**, and that permission is optional. Each thumbnail is a single still image of one window, kept in memory while the panel is open and discarded when it closes.
+* Thumbnails are the only thing that uses **Screen Recording**, and that permission is optional. Each thumbnail is a single still image of one window. The last one of each open window stays in memory, so the panel and the switcher open with images straight away; it is discarded when the window closes or the app quits.
+* The ⌥Tab switcher uses a keyboard event tap, which sees every key press. It only reacts to ⌥Tab and, while the switcher is open, to the arrow keys, Esc and Enter. Every other key passes through untouched, and no key is ever stored or logged.
 * Nothing is recorded, saved to disk, or sent anywhere. The reasoning is in [ADR 0001](docs/adr/0001-previa-de-janelas-com-gravacao-de-tela.md).
 * Apart from that, it makes no network connections and writes no files, except the optional login item.
 * Window titles stay in memory and are never stored or sent anywhere.
@@ -103,7 +127,7 @@ make dev          # run with 'swift run'
 make app          # dist/RonicDockPane.app + .zip + .dmg installer
 make universal    # universal binary (requires full Xcode)
 make icons        # regenerate the logo and AppIcon.icns
-make screenshots  # re-render docs/preview.png
+make screenshots  # re-render docs/preview.png and docs/switcher.png
 ```
 
 `scripts/package-macos.sh` signs the app with a local certificate (`scripts/dev-signing.sh`), so the Accessibility permission survives rebuilds. On CI it uses ad-hoc signing.
@@ -118,9 +142,11 @@ Sources/DockPane/
   DockPaneApp.swift                        MenuBarExtra, launch at login, app delegate
   DockMonitor.swift                        global mouse monitor, throttled Dock hit tests
   AccessibilityHelper.swift                AX: trust, Dock items, windows, raise
-  FloatingPanelController.swift            NSPanel (nonactivating), positioning, close delay
+  FloatingPanelController.swift            NSPanel (nonactivating), positioning, animations, close delay
   WindowListView.swift                     SwiftUI thumbnail cards (or plain list) with hover highlight
-  WindowPreviewProvider.swift              ScreenCaptureKit thumbnails, matched to AX windows
+  WindowPreviewProvider.swift              ScreenCaptureKit thumbnails, matched to AX windows, memory cache
+  WindowSwitcher.swift                     ⌥Tab: event tap, window order, switcher panel
+  GenieEffect.swift                        close animation into the Dock icon
 docs/adr/                                  architecture decision records
 branding/                                  logo and icon generators
 scripts/                                   packaging and signing

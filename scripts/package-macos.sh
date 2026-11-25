@@ -16,7 +16,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${VERSION:-0.3.2}"
+VERSION="${VERSION:-0.4.0}"
 if [[ -z "${SIGN_IDENTITY:-}" ]]; then
   if [[ -n "${CI:-}" ]]; then
     SIGN_IDENTITY="-"
