@@ -67,11 +67,9 @@ final class FloatingPanelController {
         dockHovering = true
         cancelCloseCheck()
 
-        if shownApp?.pid == app.pid {
-            shownApp = app
-            reposition(app)
-            return
-        }
+        // Same app: keep the panel where it opened. Re-anchoring to the icon would make it drift
+        // as the Dock's magnification grows and shrinks the icon under the moving pointer.
+        if shownApp?.pid == app.pid { return }
         guard app.pid != skippedPID, app.pid != loadingPID else { return }
 
         loadingPID = app.pid
