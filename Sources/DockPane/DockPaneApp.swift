@@ -7,13 +7,33 @@ struct DockPaneApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("Ronic DockPane", systemImage: "rectangle.stack") {
+        MenuBarExtra {
             MenuContent(state: appDelegate.state,
                         onGrant: appDelegate.showPermissionAlert,
                         onGrantScreen: appDelegate.showScreenRecordingAlert)
+        } label: {
+            Image(nsImage: MenuBarIcon.image)
         }
         .menuBarExtraStyle(.menu)
     }
+}
+
+/// The app logo (two stacked windows above a Dock bar) as a monochrome template for the menu bar.
+enum MenuBarIcon {
+    static let image: NSImage = {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+            NSColor.black.set()
+            let back = NSBezierPath(roundedRect: NSRect(x: 2, y: 8.5, width: 9, height: 7), xRadius: 1.8, yRadius: 1.8)
+            back.lineWidth = 1.3
+            back.stroke()
+            NSBezierPath(roundedRect: NSRect(x: 5.5, y: 6, width: 10.5, height: 7.5), xRadius: 1.8, yRadius: 1.8).fill()
+            NSBezierPath(roundedRect: NSRect(x: 3, y: 1, width: 12, height: 3.2), xRadius: 1.6, yRadius: 1.6).fill()
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "Ronic DockPane"
+        return image
+    }()
 }
 
 /// Menu bar menu: permission status, launch at login, quit.

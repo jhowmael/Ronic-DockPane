@@ -44,7 +44,7 @@
 2. Open the app. The first time, macOS may block it: go to **System Settings › Privacy & Security** and click **Open Anyway**. From the Terminal: `xattr -dr com.apple.quarantine /Applications/RonicDockPane.app`.
 3. Grant **Accessibility**: in **System Settings › Privacy & Security › Accessibility**, turn on **Ronic DockPane**. Ronic DockPane shows an alert that opens that pane for you.
 4. Optional: turn on **Screen Recording** for window previews. Ronic DockPane asks once and opens the pane for you. In **System Settings › Privacy & Security › Screen & System Audio Recording**, turn on **Ronic DockPane**, then choose **Already enabled: relaunch** (*Já ativei: reabrir o app*) in the menu, because macOS only applies the permission to a fresh launch.
-5. Done. The stacked-windows icon appears in the menu bar. Hover an app in the Dock that has two or more windows.
+5. Done. The Ronic DockPane logo appears in the menu bar. Hover an app in the Dock that has two or more windows.
 
 > **Permission on but Ronic DockPane still says it's not granted?** Each new build is a new app for macOS. Turn the toggle off and on, or remove Ronic DockPane from the list with **−** and open it again.
 
