@@ -32,11 +32,12 @@ struct WindowListView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider().padding(.horizontal, 8)
             if model.showPreviews {
+                // Each card already shows the app icon and the window title, so no header here.
                 cards
             } else {
+                header
+                Divider().padding(.horizontal, 8)
                 list
             }
         }
