@@ -1,6 +1,11 @@
 import AppKit
 import SwiftUI
 
+extension NSWindow.Level {
+    /// Just above the Dock, which draws its icons and the app-name label in one full-screen window.
+    static let aboveDock = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.dockWindow)) + 1)
+}
+
 /// Borderless floating panel that never activates the app the user is working in.
 /// It carries its own HUD background and fades/slides in and out.
 final class FloatingPanel: NSPanel {
@@ -10,14 +15,14 @@ final class FloatingPanel: NSPanel {
     private(set) var isDismissing = false
     private var animationToken = 0
 
-    init() {
+    init(level: NSWindow.Level = .floating) {
         super.init(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: true
         )
-        level = .floating
+        self.level = level
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
@@ -91,7 +96,7 @@ final class FloatingPanel: NSPanel {
         animationToken += 1
         orderOut(nil)
         alphaValue = 1
-        GenieEffect.play(image, from: source, into: icon, edge: edge)
+        GenieEffect.play(image, from: source, into: icon, edge: edge, level: level)
     }
 
     /// Fades the panel out, then removes it from the screen.
@@ -120,7 +125,9 @@ final class FloatingPanelController {
     private let minimumWindows: Int
     private let closeDelay: TimeInterval = 0.25
 
-    private let panel = FloatingPanel()
+    /// Above the Dock, so the panel can sit right on the icon and cover the Dock's own name label:
+    /// the app name then shows once, in the panel.
+    private let panel = FloatingPanel(level: .aboveDock)
     private var hostingView: NSHostingView<WindowListView>?
     private var currentModel: PanelModel?
 
@@ -318,7 +325,7 @@ final class FloatingPanelController {
             let origin = panel.frame.origin
             let source = CGRect(x: origin.x + card.minX, y: origin.y + hosting.frame.height - card.maxY,
                                 width: card.width, height: card.height)
-            GenieEffect.play(piece, from: source, into: app.itemFrame, edge: app.edge)
+            GenieEffect.play(piece, from: source, into: app.itemFrame, edge: app.edge, level: panel.level)
         }
 
         model.windows.removeAll { $0.id == window.id }
@@ -401,9 +408,8 @@ final class FloatingPanelController {
     /// Places the panel just outside the icon, on the side facing the screen centre, and keeps it on screen.
     private func frame(for app: DockedApp, size: CGSize) -> NSRect {
         let icon = app.itemFrame
-        // Close above a bottom Dock icon, like the Windows taskbar previews. The Dock's app-name label may
-        // overlap the panel's bottom edge a little; sitting higher made the panel feel detached from the icon.
-        let gap: CGFloat = app.edge == .bottom ? 16 : 10
+        // Right next to the icon, like the Windows taskbar previews, covering the label the Dock shows there.
+        let gap: CGFloat = 4
         let screen = NSScreen.screens.first(where: { $0.frame.intersects(icon) }) ?? NSScreen.main
         let bounds = screen?.visibleFrame ?? icon
 

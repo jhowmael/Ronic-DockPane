@@ -11,7 +11,7 @@ enum GenieEffect {
     private static var overlays: [NSWindow] = []
 
     /// Plays the effect for `image`, which covers `source`, into the Dock icon at `icon` (both in screen points).
-    static func play(_ image: CGImage, from source: CGRect, into icon: CGRect, edge: DockEdge) {
+    static func play(_ image: CGImage, from source: CGRect, into icon: CGRect, edge: DockEdge, level: NSWindow.Level) {
         guard source.width > 2, source.height > 2 else { return }
         let bounds = source.union(icon).insetBy(dx: -24, dy: -24).integral
 
@@ -21,7 +21,7 @@ enum GenieEffect {
         window.hasShadow = false
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
-        window.level = .floating
+        window.level = level
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         let view = NSView(frame: NSRect(origin: .zero, size: bounds.size))
         view.wantsLayer = true
