@@ -86,8 +86,10 @@ struct WindowListView: View {
             ForEach(rows.indices, id: \.self) { index in
                 HStack(alignment: .top, spacing: 4) {
                     ForEach(rows[index]) { window in
+                        // The Dock already shows the app's name over the icon, so the cards skip their title row.
                         PreviewCard(window: window, icon: model.app.icon,
-                                    image: model.previews[window.id], onSelect: onSelect, onClose: onClose)
+                                    image: model.previews[window.id], onSelect: onSelect, onClose: onClose,
+                                    showsTitle: false)
                     }
                 }
             }
@@ -158,18 +160,8 @@ private struct AppCard: View {
     private var size: CGSize { WindowPreviewProvider.thumbnailSize }
 
     var body: some View {
+        // No title row: the Dock shows the app's name right under the panel.
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 6) {
-                Image(nsImage: app.icon)
-                    .resizable()
-                    .frame(width: 14, height: 14)
-                Text(app.name)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .frame(width: size.width)
-
             VStack(spacing: 8) {
                 Image(nsImage: app.icon)
                     .resizable()
@@ -225,6 +217,9 @@ struct PreviewCard: View {
     /// Set by the window switcher, where the keyboard decides the highlight. `nil` follows the pointer.
     var isSelected: Bool? = nil
     var onHover: () -> Void = {}
+    /// The icon and title row above the thumbnail. Without it the title shows on hover, and under the
+    /// placeholder while there is no thumbnail.
+    var showsTitle = true
 
     @State private var isHovered = false
 
@@ -234,17 +229,19 @@ struct PreviewCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 6) {
-                Image(nsImage: icon)
-                    .resizable()
-                    .frame(width: 14, height: 14)
-                Text(window.title)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer(minLength: 0)
+            if showsTitle {
+                HStack(spacing: 6) {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .frame(width: 14, height: 14)
+                    Text(window.title)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
+                }
+                .frame(width: size.width)
             }
-            .frame(width: size.width)
 
             thumbnail
                 .frame(width: size.width, height: size.height)
@@ -280,6 +277,7 @@ struct PreviewCard: View {
             Color.clear.preference(key: CardFramesKey.self,
                                    value: [window.id: proxy.frame(in: .named(CardFramesKey.space))])
         })
+        .help(showsTitle ? "" : window.title)
         .onHover { hovering in
             isHovered = hovering
             if hovering { onHover() }
@@ -295,12 +293,21 @@ struct PreviewCard: View {
                 .scaledToFit()
                 .opacity(window.isMinimized ? 0.55 : 1)
         } else {
-            // Not captured (yet, or the window cannot be captured): show the app icon.
-            Image(nsImage: icon)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 48, height: 48)
-                .opacity(0.8)
+            // Not captured (yet, or the window cannot be captured): the app icon, and the title if it is not above.
+            VStack(spacing: 6) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 44, height: 44)
+                    .opacity(0.8)
+                if !showsTitle {
+                    Text(window.title)
+                        .font(.system(size: 11))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 10)
+                }
+            }
         }
     }
 }

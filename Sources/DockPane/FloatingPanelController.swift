@@ -1,11 +1,6 @@
 import AppKit
 import SwiftUI
 
-extension NSWindow.Level {
-    /// Just above the Dock, which draws its icons and the app-name label in one full-screen window.
-    static let aboveDock = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.dockWindow)) + 1)
-}
-
 /// Borderless floating panel that never activates the app the user is working in.
 /// It carries its own HUD background and fades/slides in and out.
 final class FloatingPanel: NSPanel {
@@ -125,9 +120,7 @@ final class FloatingPanelController {
     private let minimumWindows: Int
     private let closeDelay: TimeInterval = 0.25
 
-    /// Above the Dock, so the panel can sit right on the icon and cover the Dock's own name label:
-    /// the app name then shows once, in the panel.
-    private let panel = FloatingPanel(level: .aboveDock)
+    private let panel = FloatingPanel()
     private var hostingView: NSHostingView<WindowListView>?
     private var currentModel: PanelModel?
 
@@ -405,11 +398,33 @@ final class FloatingPanelController {
         }
     }
 
+    /// The icon's frame at full Dock magnification. The icon under the pointer may still be growing when the
+    /// panel opens; measured from its current size, the panel would end up sitting on it.
+    private func reach(of app: DockedApp) -> CGRect {
+        let icon = app.itemFrame
+        guard (CFPreferencesCopyAppValue("magnification" as CFString, "com.apple.dock" as CFString) as? Bool) == true,
+              let large = CFPreferencesCopyAppValue("largesize" as CFString, "com.apple.dock" as CFString) as? NSNumber
+        else { return icon }
+        // The Dock's item frame is the icon plus a strip for the running indicator, on the screen-edge side.
+        let maxIcon = CGFloat(large.doubleValue) * 1.05
+        switch app.edge {
+        case .bottom:
+            let height = icon.height - icon.width + max(icon.width, maxIcon)
+            return CGRect(x: icon.minX, y: icon.minY, width: icon.width, height: max(icon.height, height))
+        case .left:
+            let width = icon.width - icon.height + max(icon.height, maxIcon)
+            return CGRect(x: icon.minX, y: icon.minY, width: max(icon.width, width), height: icon.height)
+        case .right:
+            let width = max(icon.width, icon.width - icon.height + max(icon.height, maxIcon))
+            return CGRect(x: icon.maxX - width, y: icon.minY, width: width, height: icon.height)
+        }
+    }
+
     /// Places the panel just outside the icon, on the side facing the screen centre, and keeps it on screen.
     private func frame(for app: DockedApp, size: CGSize) -> NSRect {
-        let icon = app.itemFrame
-        // Right next to the icon, like the Windows taskbar previews, covering the label the Dock shows there.
-        let gap: CGFloat = 4
+        let icon = reach(of: app)
+        // Close to the icon, like the Windows taskbar previews, with room for the app name the Dock shows.
+        let gap: CGFloat = app.edge == .bottom ? 16 : 10
         let screen = NSScreen.screens.first(where: { $0.frame.intersects(icon) }) ?? NSScreen.main
         let bounds = screen?.visibleFrame ?? icon
 
