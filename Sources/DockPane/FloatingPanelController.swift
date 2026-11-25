@@ -104,6 +104,7 @@ final class FloatingPanelController {
     private func windowsLoaded(_ windows: [AppWindow], for app: DockedApp, token: Int) {
         guard token == loadToken else { return }
         loadingPID = nil
+        Debug.log("windows for \(app.name): \(windows.count), hovering=\(dockHovering)")
         guard dockHovering else { return }
 
         if windows.count >= minimumWindows {
@@ -117,11 +118,17 @@ final class FloatingPanelController {
     private func present(app: DockedApp, windows: [AppWindow]) {
         shownApp = app
 
-        let showPreviews = WindowPreviewProvider.isSupported && WindowPreviewProvider.isAuthorized
-        let model = PanelModel(app: app, windows: windows, showPreviews: showPreviews)
-        let root = WindowListView(model: model) { [weak self] window in
+        let supported = WindowPreviewProvider.isSupported
+        let authorized = WindowPreviewProvider.isAuthorized
+        let model = PanelModel(app: app, windows: windows, showPreviews: supported,
+                               needsPermission: supported && !authorized)
+        let root = WindowListView(model: model, onSelect: { [weak self] window in
             self?.select(window, pid: app.pid)
-        }
+        }, onEnablePreviews: { [weak self] in
+            self?.hidePanel()
+            WindowPreviewProvider.requestAccess()
+            WindowPreviewProvider.openSettings()
+        })
 
         let hosting: NSHostingView<WindowListView>
         if let existing = hostingView {
@@ -140,12 +147,13 @@ final class FloatingPanelController {
         reposition(app)
         panel.orderFrontRegardless()
 
-        guard showPreviews else { return }
+        guard supported, authorized else { return }
         previewToken += 1
         let token = previewToken
         Task { @MainActor [weak self] in
             let previews = await WindowPreviewProvider.previews(for: windows, pid: app.pid)
             guard let self, token == self.previewToken, self.shownApp?.pid == app.pid else { return }
+            Debug.log("previews: \(previews.count)/\(windows.count)")
             model.previews = previews
         }
     }
@@ -158,6 +166,7 @@ final class FloatingPanelController {
     }
 
     private func hidePanel() {
+        Debug.log("hide panel")
         cancelCloseCheck()
         panel.orderOut(nil)
         shownApp = nil
@@ -195,7 +204,8 @@ final class FloatingPanelController {
     /// Places the panel just outside the icon, on the side facing the screen centre, and keeps it on screen.
     private func frame(for app: DockedApp, size: CGSize) -> NSRect {
         let icon = app.itemFrame
-        let gap: CGFloat = 6
+        // Above a bottom Dock, leave room for the app-name label the Dock shows over the icon.
+        let gap: CGFloat = app.edge == .bottom ? 34 : 10
         let screen = NSScreen.screens.first(where: { $0.frame.intersects(icon) }) ?? NSScreen.main
         let bounds = screen?.visibleFrame ?? icon
 

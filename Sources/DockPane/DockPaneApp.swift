@@ -33,6 +33,7 @@ private struct MenuContent: View {
             Text(state.hasScreenAccess ? "Prévias das janelas: ativas" : "Prévias das janelas: sem permissão")
             if !state.hasScreenAccess {
                 Button("Ativar prévias (Gravação de Tela)…", action: onGrantScreen)
+                Button("Já ativei: reabrir o app", action: AppRelauncher.relaunch)
             }
         }
 
@@ -73,6 +74,18 @@ final class AppState: ObservableObject {
             alert.runModal()
         }
         launchAtLogin = LaunchAtLogin.isEnabled
+    }
+}
+
+/// The system only applies a new Screen Recording permission to processes started afterwards.
+enum AppRelauncher {
+    static func relaunch() {
+        let path = Bundle.main.bundlePath
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "sleep 1; /usr/bin/open \"$1\"", "sh", path]
+        try? process.run()
+        NSApp.terminate(nil)
     }
 }
 
@@ -204,38 +217,124 @@ extension AppDelegate {
     }
 }
 
-/// Renders the panel with sample windows to a PNG for the README: `DOCKPANE_SHOT=/path/file.png DockPane`.
-/// The thumbnails are drawn, not captured, so no real window content ends up in the repository.
+/// Renders a README image (`DOCKPANE_SHOT=/path/file.png DockPane`): a desktop with the Dock and the panel open
+/// over Terminal. The thumbnails are drawn, not captured, so no real window content ends up in the repository.
 enum DemoScreenshot {
-    static func write(to path: String) {
-        let icon = NSWorkspace.shared.icon(forFile: "/System/Applications/Utilities/Terminal.app")
-        let app = DockedApp(pid: 0, name: "Terminal", icon: icon, itemFrame: .zero, edge: .bottom)
+    private static let sceneSize = CGSize(width: 1120, height: 440)
 
-        let samples: [(title: String, minimized: Bool, tint: NSColor)] = [
-            ("~ — zsh", false, NSColor(srgbRed: 0.10, green: 0.11, blue: 0.14, alpha: 1)),
-            ("ronic-dockpane — vim", false, NSColor(srgbRed: 0.12, green: 0.16, blue: 0.22, alpha: 1)),
-            ("npm run dev — node", true, NSColor(srgbRed: 0.14, green: 0.13, blue: 0.18, alpha: 1)),
-            ("logs — tail -f app.log", false, NSColor(srgbRed: 0.09, green: 0.15, blue: 0.13, alpha: 1)),
+    static func write(to path: String) {
+        let terminalIcon = NSWorkspace.shared.icon(forFile: "/System/Applications/Utilities/Terminal.app")
+        let app = DockedApp(pid: 0, name: "Terminal", icon: terminalIcon, itemFrame: .zero, edge: .bottom)
+
+        let green = NSColor(srgbRed: 0.45, green: 0.86, blue: 0.55, alpha: 1)
+        let blue = NSColor(srgbRed: 0.45, green: 0.70, blue: 1.00, alpha: 1)
+        let pink = NSColor(srgbRed: 0.98, green: 0.47, blue: 0.68, alpha: 1)
+        let yellow = NSColor(srgbRed: 0.98, green: 0.83, blue: 0.42, alpha: 1)
+        let gray = NSColor(white: 0.62, alpha: 1)
+        let white = NSColor(white: 0.92, alpha: 1)
+
+        let samples: [(title: String, minimized: Bool, lines: [(String, NSColor)])] = [
+            ("~ — zsh", false, [
+                ("ronic@mac ~ % ls", white),
+                ("Desktop    Documents  Downloads  Projects", blue),
+                ("ronic@mac ~ % cd Projects/ronic-dockpane", white),
+                ("ronic@mac ronic-dockpane % git status", white),
+                ("On branch main", gray),
+                ("Your branch is up to date with 'origin/main'.", gray),
+                ("nothing to commit, working tree clean", green),
+                ("ronic@mac ronic-dockpane % ▌", white),
+            ]),
+            ("DockMonitor.swift — vim", false, [
+                ("final class DockMonitor {", pink),
+                ("    var onHover: ((DockedApp?) -> Void)?", white),
+                ("    private let queryInterval = 0.09", white),
+                ("", white),
+                ("    func start() {", pink),
+                ("        guard eventMonitor == nil else { return }", white),
+                ("        // event-driven, no timers", gray),
+                ("    }", white),
+                ("-- INSERT --", yellow),
+            ]),
+            ("npm run dev — node", true, [
+                ("> web@1.4.0 dev", gray),
+                ("> vite", gray),
+                ("", white),
+                ("  VITE v5.4.2  ready in 312 ms", green),
+                ("", white),
+                ("  ➜  Local:   http://localhost:5173/", blue),
+                ("  ➜  Network: use --host to expose", gray),
+                ("  12:04:31 [vite] hmr update /src/App.tsx", yellow),
+            ]),
+            ("app.log — tail -f", false, [
+                ("12:04:02 INFO  server started on :8080", green),
+                ("12:04:05 INFO  GET /health 200 2ms", white),
+                ("12:04:09 INFO  GET /api/windows 200 14ms", white),
+                ("12:04:11 WARN  cache miss: previews/42", yellow),
+                ("12:04:12 INFO  POST /api/raise 204 3ms", white),
+                ("12:04:15 INFO  GET /api/windows 200 11ms", white),
+                ("12:04:18 INFO  GET /health 200 1ms", white),
+                ("▌", white),
+            ]),
         ]
+
         var windows: [AppWindow] = []
         var previews: [Int: NSImage] = [:]
         for (index, sample) in samples.enumerated() {
             windows.append(AppWindow(id: index, title: sample.title, isMinimized: sample.minimized,
                                      frame: nil, element: AXUIElementCreateSystemWide()))
-            previews[index] = sampleThumbnail(tint: sample.tint, seed: index)
+            previews[index] = terminalThumbnail(lines: sample.lines)
         }
 
         let model = PanelModel(app: app, windows: windows, showPreviews: true)
         model.previews = previews
 
-        let content = WindowListView(model: model) { _ in }
-            .background(Color(red: 0.13, green: 0.13, blue: 0.15))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .padding(24)
-            .environment(\.colorScheme, .dark)
+        let dockApps = [
+            "/System/Library/CoreServices/Finder.app",
+            "/System/Applications/Calendar.app",
+            "/System/Applications/Utilities/Terminal.app",
+            "/System/Applications/Notes.app",
+            "/System/Applications/System Settings.app",
+        ].map { NSWorkspace.shared.icon(forFile: $0) }
 
-        let host = NSHostingView(rootView: content)
-        let size = host.fittingSize
+        let scene = ZStack(alignment: .bottom) {
+            LinearGradient(
+                colors: [Color(red: 0.22, green: 0.14, blue: 0.45), Color(red: 0.05, green: 0.30, blue: 0.50)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+            VStack(spacing: 34) {
+                WindowListView(model: model, onSelect: { _ in })
+                    .background(Color(red: 0.12, green: 0.12, blue: 0.14).opacity(0.94))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(0.45), radius: 24, y: 10)
+                    .fixedSize()
+
+                HStack(spacing: 10) {
+                    ForEach(dockApps.indices, id: \.self) { index in
+                        VStack(spacing: 3) {
+                            Image(nsImage: dockApps[index]).resizable().frame(width: 58, height: 58)
+                            Circle().fill(Color.white.opacity(index == 2 ? 0.85 : 0)).frame(width: 4, height: 4)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+                .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(0.16)))
+                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 0.5))
+            }
+            .padding(.bottom, 10)
+        }
+        .frame(width: sceneSize.width, height: sceneSize.height)
+        .environment(\.colorScheme, .dark)
+
+        render(scene, size: sceneSize, to: path)
+    }
+
+    private static func render<V: View>(_ view: V, size: CGSize, to path: String) {
+        let host = NSHostingView(rootView: view)
         host.frame = NSRect(origin: .zero, size: size)
 
         let scale: CGFloat = 2
@@ -263,24 +362,23 @@ enum DemoScreenshot {
         try? png.write(to: URL(fileURLWithPath: path))
     }
 
-    /// A drawn stand-in for a window capture: dark body with a title bar and a few lines of "text".
-    private static func sampleThumbnail(tint: NSColor, seed: Int) -> NSImage {
-        let size = WindowPreviewProvider.thumbnailSize
-        return NSImage(size: size, flipped: false) { rect in
-            tint.setFill()
+    /// A drawn Terminal window: title bar with the three buttons and coloured monospaced text.
+    private static func terminalThumbnail(lines: [(String, NSColor)]) -> NSImage {
+        let thumb = WindowPreviewProvider.thumbnailSize
+        let size = NSSize(width: thumb.width * 2, height: thumb.height * 2)
+        return NSImage(size: size, flipped: true) { rect in
+            NSColor(srgbRed: 0.09, green: 0.09, blue: 0.11, alpha: 1).setFill()
             rect.fill()
-            NSColor.white.withAlphaComponent(0.10).setFill()
-            NSRect(x: 0, y: rect.height - 16, width: rect.width, height: 16).fill()
-            let dots: [NSColor] = [.systemRed, .systemYellow, .systemGreen]
-            for (i, color) in dots.enumerated() {
+            NSColor(white: 0.20, alpha: 1).setFill()
+            NSRect(x: 0, y: 0, width: rect.width, height: 26).fill()
+            for (i, color) in [NSColor.systemRed, .systemYellow, .systemGreen].enumerated() {
                 color.setFill()
-                NSBezierPath(ovalIn: NSRect(x: 8 + CGFloat(i) * 12, y: rect.height - 12, width: 8, height: 8)).fill()
+                NSBezierPath(ovalIn: NSRect(x: 10 + CGFloat(i) * 18, y: 7, width: 12, height: 12)).fill()
             }
-            for line in 0..<7 {
-                let width = CGFloat(40 + ((line * 37 + seed * 23) % 110))
-                NSColor.white.withAlphaComponent(line % 3 == 0 ? 0.55 : 0.28).setFill()
-                NSBezierPath(roundedRect: NSRect(x: 12, y: rect.height - 36 - CGFloat(line) * 14, width: width, height: 5),
-                             xRadius: 2.5, yRadius: 2.5).fill()
+            let font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+            for (index, line) in lines.enumerated() {
+                NSAttributedString(string: line.0, attributes: [.font: font, .foregroundColor: line.1])
+                    .draw(at: NSPoint(x: 12, y: 36 + CGFloat(index) * 19))
             }
             return true
         }

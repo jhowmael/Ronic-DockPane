@@ -9,11 +9,14 @@ final class PanelModel: ObservableObject {
     @Published var previews: [Int: NSImage] = [:]
     /// Thumbnail cards when Screen Recording is granted; a plain list of titles otherwise.
     @Published var showPreviews: Bool
+    /// Cards are shown but Screen Recording is missing, so they only have placeholders.
+    @Published var needsPermission: Bool
 
-    init(app: DockedApp, windows: [AppWindow], showPreviews: Bool) {
+    init(app: DockedApp, windows: [AppWindow], showPreviews: Bool, needsPermission: Bool = false) {
         self.app = app
         self.windows = windows
         self.showPreviews = showPreviews
+        self.needsPermission = needsPermission
     }
 }
 
@@ -21,6 +24,7 @@ final class PanelModel: ObservableObject {
 struct WindowListView: View {
     @ObservedObject var model: PanelModel
     let onSelect: (AppWindow) -> Void
+    var onEnablePreviews: () -> Void = {}
 
     private let maxListRows = 12
     private let maxCards = 8
@@ -79,6 +83,19 @@ struct WindowListView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 8)
+            }
+            if model.needsPermission {
+                Button(action: onEnablePreviews) {
+                    Label("Ative a Gravação de Tela para ver a prévia das janelas", systemImage: "eye")
+                        .font(.system(size: 11, weight: .medium))
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity)
+                        .background(Capsule().fill(Color.accentColor.opacity(0.9)))
+                        .foregroundStyle(Color.white)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
             }
         }
         .padding(8)

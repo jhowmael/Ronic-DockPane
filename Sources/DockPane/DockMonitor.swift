@@ -23,6 +23,7 @@ final class DockMonitor {
 
     func start() {
         guard eventMonitor == nil else { return }
+        Debug.log("monitor started")
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
             self?.mouseMoved()
         }
@@ -95,6 +96,7 @@ final class DockMonitor {
         queryInFlight = false
         guard token == generation else { return }
 
+        Debug.log("hit: \(hit.map { "\($0.bundleID ?? "?") \($0.axFrame)" } ?? "nil")")
         guard let hit, let app = resolve(hit) else {
             if reportedPID != nil {
                 reportedPID = nil

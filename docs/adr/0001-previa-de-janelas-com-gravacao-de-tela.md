@@ -20,10 +20,15 @@ permissão de Gravação de Tela.
    uma coluna com o Dock nas laterais), com o título acima.
 2. A captura usa **ScreenCaptureKit** (`SCScreenshotManager`, uma imagem por janela, sob demanda).
    Nada de stream contínuo, nada em disco: as imagens vivem na memória enquanto o painel está aberto.
-3. A permissão de Gravação de Tela é **opcional**. Sem ela, o painel continua funcionando com a
-   lista de títulos da versão anterior. A Acessibilidade segue obrigatória.
+3. A permissão de Gravação de Tela é **opcional**, mas o layout de cartões é sempre o padrão. Sem
+   a permissão, cada cartão mostra o ícone do app e o painel exibe um botão para ativar as prévias.
+   A lista só de títulos ficou restrita ao macOS 13, que não tem a API de captura. A Acessibilidade
+   segue obrigatória.
+   *Revisado em 2026-11-24:* a primeira versão caía para a lista de títulos quando faltava a
+   permissão, e isso parecia que as prévias não existiam.
 4. O app pergunta pela permissão **uma única vez** (alerta amigável) e deixa um item no menu para
-   ativar depois. O menu mostra o estado das prévias.
+   ativar depois. O menu mostra o estado das prévias e um
+   item "Já ativei: reabrir o app", porque o macOS só aplica a permissão a um processo novo.
 5. O painel abre imediatamente, com cartões do tamanho final e o ícone do app como substituto; as
    miniaturas entram quando a captura termina (cerca de 0,5 s para 4 janelas nos testes).
 6. As prévias exigem macOS 14 (`SCScreenshotManager`). O app continua rodando no macOS 13, só sem

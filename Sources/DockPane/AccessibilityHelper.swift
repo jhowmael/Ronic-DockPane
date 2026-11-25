@@ -1,6 +1,14 @@
 import AppKit
 import ApplicationServices
 
+/// Diagnostics, only when launched with `DOCKPANE_DEBUG=1`.
+enum Debug {
+    static let enabled = ProcessInfo.processInfo.environment["DOCKPANE_DEBUG"] == "1"
+    static func log(_ message: @autoclosure () -> String) {
+        if enabled { FileHandle.standardError.write(Data("[DockPane] \(message())\n".utf8)) }
+    }
+}
+
 /// Which screen edge the Dock sits on (from `com.apple.dock` → `orientation`).
 enum DockEdge {
     case bottom, left, right

@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="Ronic DockPane panel with a thumbnail preview of each window of an app" width="760">
+  <img src="docs/preview.png" alt="Ronic DockPane panel with a thumbnail preview of each window of an app" width="900">
 </p>
 
 ---
@@ -35,7 +35,7 @@
 | **macOS** (Apple Silicon and Intel) | [`RonicDockPane-macOS.zip`](https://github.com/jhowmael/Ronic-DockPane/releases/latest/download/RonicDockPane-macOS.zip) | macOS 13 Ventura or later |
 
 * **Menu bar only.** No icon in the Dock and no app menu.
-* **Permissions:** Accessibility is required. Screen Recording is optional and only turns on the thumbnails; without it you get a plain list of window titles.
+* **Permissions:** Accessibility is required. Screen Recording turns on the thumbnails; until you grant it, each card shows the app icon and the panel offers a button to enable previews.
 * **Idle cost is minimal.** There are no timers and no polling. The mouse is watched through an event monitor, and the Dock is queried only while the pointer is on the Dock's edge.
 
 ## Installation
@@ -43,7 +43,7 @@
 1. Download `RonicDockPane-macOS.zip`, unzip it, and drag **RonicDockPane.app** into **Applications**.
 2. Open the app. The first time, macOS may block it: go to **System Settings › Privacy & Security** and click **Open Anyway**. From the Terminal: `xattr -dr com.apple.quarantine /Applications/RonicDockPane.app`.
 3. Grant **Accessibility**: in **System Settings › Privacy & Security › Accessibility**, turn on **Ronic DockPane**. Ronic DockPane shows an alert that opens that pane for you.
-4. Optional: turn on **Screen Recording** for window previews. Ronic DockPane asks once and opens the pane for you. In **System Settings › Privacy & Security › Screen & System Audio Recording**, turn on **Ronic DockPane**, then quit and reopen the app.
+4. Optional: turn on **Screen Recording** for window previews. Ronic DockPane asks once and opens the pane for you. In **System Settings › Privacy & Security › Screen & System Audio Recording**, turn on **Ronic DockPane**, then choose **Already enabled: relaunch** (*Já ativei: reabrir o app*) in the menu, because macOS only applies the permission to a fresh launch.
 5. Done. The stacked-windows icon appears in the menu bar. Hover an app in the Dock that has two or more windows.
 
 > **Permission on but Ronic DockPane still says it's not granted?** Each new build is a new app for macOS. Turn the toggle off and on, or remove Ronic DockPane from the list with **−** and open it again.
@@ -53,7 +53,7 @@
 | Item | What it does |
 |---|---|
 | **Accessibility** status | Shows whether the permission is granted. **Grant permission…** appears when it isn't. |
-| **Window previews** | Shows whether thumbnails are on. **Enable previews…** opens the Screen Recording pane. Needs macOS 14 or later. |
+| **Window previews** | Shows whether thumbnails are on. **Enable previews…** opens the Screen Recording pane; **Already enabled: relaunch** restarts the app to apply it. Needs macOS 14 or later. |
 | **Launch at login** (*Iniciar com o macOS*) | Adds or removes Ronic DockPane from the system's login items (`SMAppService`). |
 | **Quit** (*Sair*) | Quits Ronic DockPane. |
 
@@ -63,7 +63,7 @@
 2. When the pointer enters the strip along the Dock's edge (bottom, left or right, read from the Dock's settings), Ronic DockPane asks the Accessibility API which Dock icon is under it. At most one query runs every 90 ms, off the main thread.
 3. The icon is matched to a running app, and its windows are read through `kAXWindowsAttribute`. Only standard windows with a title are kept, and minimized windows are included.
 4. Two or more windows → a floating panel opens next to the icon. It doesn't take focus from the app you're using.
-5. With Screen Recording granted, a thumbnail of each window is captured with ScreenCaptureKit (one still image per window, only while the panel is open). The panel appears immediately with placeholders and the thumbnails fill in as they arrive.
+5. With Screen Recording granted, a thumbnail of each window is captured with ScreenCaptureKit (one still image per window, only while the panel is open). The panel appears immediately with placeholders and the thumbnails fill in as they arrive. On macOS 13 the panel shows a plain list of titles instead.
 6. Clicking a window unminimizes it if needed, raises it, activates its app, and closes the panel. The panel also closes about 250 ms after the pointer leaves both the icon and the panel, which gives you time to move between them.
 
 ## Settings
@@ -103,7 +103,7 @@ make dev          # run with 'swift run'
 make app          # dist/RonicDockPane.app + dist/RonicDockPane-macOS.zip
 make universal    # universal binary (requires full Xcode)
 make icons        # regenerate the logo and AppIcon.icns
-make screenshots  # re-render docs/screenshot.png
+make screenshots  # re-render docs/preview.png
 ```
 
 `scripts/package-macos.sh` signs the app with a local certificate (`scripts/dev-signing.sh`), so the Accessibility permission survives rebuilds. On CI it uses ad-hoc signing.
