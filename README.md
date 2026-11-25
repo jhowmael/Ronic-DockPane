@@ -64,7 +64,7 @@
 3. The icon is matched to a running app, and its windows are read through `kAXWindowsAttribute`. Only standard windows with a title are kept, and minimized windows are included.
 4. Two or more windows → a floating panel opens next to the icon. It doesn't take focus from the app you're using.
 5. With Screen Recording granted, a thumbnail of each window is captured with ScreenCaptureKit (one still image per window, only while the panel is open). The panel appears immediately with placeholders and the thumbnails fill in as they arrive. On macOS 13 the panel shows a plain list of titles instead.
-6. Clicking a window unminimizes it if needed, raises it, activates its app, and closes the panel. The panel also closes about 250 ms after the pointer leaves both the icon and the panel, which gives you time to move between them.
+6. Hovering a card shows a red ✕ that closes that window for real (it presses the window's own close button, so the app may still ask to save). Clicking a window unminimizes it if needed, raises it, activates its app, and closes the panel. The panel also closes about 250 ms after the pointer leaves both the icon and the panel, which gives you time to move between them.
 
 ## Settings
 

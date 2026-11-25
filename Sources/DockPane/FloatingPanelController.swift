@@ -35,6 +35,7 @@ final class FloatingPanelController {
     private let panel = FloatingPanel()
     private let effectView = NSVisualEffectView()
     private var hostingView: NSHostingView<WindowListView>?
+    private var currentModel: PanelModel?
 
     private var shownApp: DockedApp?
     private var dockHovering = false
@@ -128,7 +129,10 @@ final class FloatingPanelController {
             self?.hidePanel()
             WindowPreviewProvider.requestAccess()
             WindowPreviewProvider.openSettings()
+        }, onClose: { [weak self] window in
+            self?.close(window)
         })
+        currentModel = model
 
         let hosting: NSHostingView<WindowListView>
         if let existing = hostingView {
@@ -156,6 +160,19 @@ final class FloatingPanelController {
             Debug.log("previews: \(previews.count)/\(windows.count)")
             model.previews = previews
         }
+    }
+
+    /// Closes the real window and removes its card; the panel shrinks or hides when nothing is left.
+    private func close(_ window: AppWindow) {
+        AccessibilityHelper.queue.async { AccessibilityHelper.close(window) }
+        guard let model = currentModel, let app = shownApp else { return }
+        model.windows.removeAll { $0.id == window.id }
+        model.previews[window.id] = nil
+        guard !model.windows.isEmpty, let hosting = hostingView else { hidePanel(); return }
+        hosting.rootView = hosting.rootView
+        hosting.layoutSubtreeIfNeeded()
+        panel.setContentSize(hosting.fittingSize)
+        reposition(app)
     }
 
     private func select(_ window: AppWindow, pid: pid_t) {

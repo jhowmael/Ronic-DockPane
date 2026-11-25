@@ -25,6 +25,7 @@ struct WindowListView: View {
     @ObservedObject var model: PanelModel
     let onSelect: (AppWindow) -> Void
     var onEnablePreviews: () -> Void = {}
+    var onClose: (AppWindow) -> Void = { _ in }
 
     private let maxListRows = 12
     private let maxCards = 8
@@ -74,7 +75,7 @@ struct WindowListView: View {
                 HStack(alignment: .top, spacing: 6) {
                     ForEach(rows[index]) { window in
                         PreviewCard(window: window, app: model.app,
-                                    image: model.previews[window.id], onSelect: onSelect)
+                                    image: model.previews[window.id], onSelect: onSelect, onClose: onClose)
                     }
                 }
             }
@@ -131,6 +132,7 @@ private struct PreviewCard: View {
     let app: DockedApp
     let image: NSImage?
     let onSelect: (AppWindow) -> Void
+    let onClose: (AppWindow) -> Void
 
     @State private var isHovered = false
 
@@ -161,6 +163,20 @@ private struct PreviewCard: View {
         }
         .foregroundStyle(isHovered ? Color.white : Color.primary)
         .padding(8)
+        .overlay(alignment: .topTrailing) {
+            if isHovered {
+                Button { onClose(window) } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.red.opacity(0.9)))
+                }
+                .buttonStyle(.plain)
+                .help("Fechar janela")
+                .padding(4)
+            }
+        }
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isHovered ? Color.accentColor.opacity(0.85) : Color.clear)

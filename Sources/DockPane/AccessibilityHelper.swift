@@ -135,6 +135,12 @@ enum AccessibilityHelper {
         return result
     }
 
+    /// Presses the window's own close button, so the app closes it as if the user clicked the red button.
+    static func close(_ window: AppWindow) {
+        guard let button: AXUIElement = attribute(window.element, "AXCloseButton") else { return }
+        AXUIElementPerformAction(button, "AXPress" as CFString)
+    }
+
     /// Unminimizes the window if needed, raises it, and activates its app.
     static func raise(_ window: AppWindow, pid: pid_t) {
         if window.isMinimized {
