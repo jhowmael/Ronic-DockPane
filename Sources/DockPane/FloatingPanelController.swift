@@ -131,6 +131,10 @@ final class FloatingPanelController {
             WindowPreviewProvider.openSettings()
         }, onClose: { [weak self] window in
             self?.close(window)
+        }, onReopenApp: { [weak self] in
+            self?.reopen(pid: app.pid)
+        }, onQuitApp: { [weak self] in
+            self?.quit(pid: app.pid)
         })
         currentModel = model
 
@@ -151,7 +155,7 @@ final class FloatingPanelController {
         reposition(app)
         panel.orderFrontRegardless()
 
-        guard supported, authorized else { return }
+        guard supported, authorized, !windows.isEmpty else { return }
         previewToken += 1
         let token = previewToken
         Task { @MainActor [weak self] in
@@ -162,17 +166,32 @@ final class FloatingPanelController {
         }
     }
 
-    /// Closes the real window and removes its card; the panel shrinks or hides when nothing is left.
+    /// Closes the real window and removes its card. After the last one the panel shows the app card,
+    /// since most Mac apps keep running with no windows.
     private func close(_ window: AppWindow) {
         AccessibilityHelper.queue.async { AccessibilityHelper.close(window) }
-        guard let model = currentModel, let app = shownApp else { return }
+        guard let model = currentModel, let app = shownApp, let hosting = hostingView else { return }
         model.windows.removeAll { $0.id == window.id }
         model.previews[window.id] = nil
-        guard !model.windows.isEmpty, let hosting = hostingView else { hidePanel(); return }
         hosting.rootView = hosting.rootView
         hosting.layoutSubtreeIfNeeded()
         panel.setContentSize(hosting.fittingSize)
         reposition(app)
+    }
+
+    /// Asks a running app with no windows to open one, like clicking its Dock icon (the "reopen" event).
+    private func reopen(pid: pid_t) {
+        hidePanel()
+        guard let url = NSRunningApplication(processIdentifier: pid)?.bundleURL else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+    }
+
+    /// Quits the app (it may still ask to save documents).
+    private func quit(pid: pid_t) {
+        hidePanel()
+        NSRunningApplication(processIdentifier: pid)?.terminate()
     }
 
     private func select(_ window: AppWindow, pid: pid_t) {

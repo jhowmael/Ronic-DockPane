@@ -26,13 +26,20 @@ struct WindowListView: View {
     let onSelect: (AppWindow) -> Void
     var onEnablePreviews: () -> Void = {}
     var onClose: (AppWindow) -> Void = { _ in }
+    /// The app is running with no windows: reopen one (same as clicking its Dock icon).
+    var onReopenApp: () -> Void = {}
+    /// Quits the app for real.
+    var onQuitApp: () -> Void = {}
 
     private let maxListRows = 12
     private let maxCards = 8
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if model.showPreviews {
+            if model.windows.isEmpty {
+                AppCard(app: model.app, onReopen: onReopenApp, onQuit: onQuitApp)
+                    .padding(8)
+            } else if model.showPreviews {
                 // Each card already shows the app icon and the window title, so no header here.
                 cards
             } else {
@@ -62,7 +69,7 @@ struct WindowListView: View {
 
     /// Side docks get a single column; a bottom dock spreads the cards in up to four columns, like the Windows taskbar.
     private var columns: Int {
-        let count = min(model.windows.count, maxCards)
+        let count = max(1, min(model.windows.count, maxCards))
         return model.app.edge == .bottom ? min(count, 4) : 1
     }
 
@@ -124,6 +131,73 @@ struct WindowListView: View {
             }
         }
         .frame(width: 280)
+    }
+}
+
+/// Card for an app that is running but has no open window (closed with the red button, or hidden).
+private struct AppCard: View {
+    let app: DockedApp
+    let onReopen: () -> Void
+    let onQuit: () -> Void
+
+    @State private var isHovered = false
+
+    private var size: CGSize { WindowPreviewProvider.thumbnailSize }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(nsImage: app.icon)
+                    .resizable()
+                    .frame(width: 14, height: 14)
+                Text(app.name)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .frame(width: size.width)
+
+            VStack(spacing: 8) {
+                Image(nsImage: app.icon)
+                    .resizable()
+                    .frame(width: 56, height: 56)
+                Text("Nenhuma janela aberta")
+                    .font(.system(size: 12, weight: .medium))
+                Text("Clique para abrir uma nova")
+                    .font(.system(size: 10))
+                    .opacity(0.7)
+            }
+            .frame(width: size.width, height: size.height)
+            .background(Color.black.opacity(0.25))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+            )
+        }
+        .foregroundStyle(isHovered ? Color.white : Color.primary)
+        .padding(8)
+        .overlay(alignment: .topTrailing) {
+            if isHovered {
+                Button(action: onQuit) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.red.opacity(0.9)))
+                }
+                .buttonStyle(.plain)
+                .help("Encerrar \(app.name)")
+                .padding(4)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isHovered ? Color.accentColor.opacity(0.85) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .onTapGesture(perform: onReopen)
     }
 }
 

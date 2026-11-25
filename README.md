@@ -44,7 +44,7 @@
 2. Open the app. The first time, macOS may block it: go to **System Settings › Privacy & Security** and click **Open Anyway**. From the Terminal: `xattr -dr com.apple.quarantine /Applications/RonicDockPane.app`.
 3. Grant **Accessibility**: in **System Settings › Privacy & Security › Accessibility**, turn on **Ronic DockPane**. Ronic DockPane shows an alert that opens that pane for you.
 4. Optional: turn on **Screen Recording** for window previews. Ronic DockPane asks once and opens the pane for you. In **System Settings › Privacy & Security › Screen & System Audio Recording**, turn on **Ronic DockPane**, then choose **Already enabled: relaunch** (*Já ativei: reabrir o app*) in the menu, because macOS only applies the permission to a fresh launch.
-5. Done. The Ronic DockPane logo appears in the menu bar. Hover an app in the Dock that has at least one window.
+5. Done. The Ronic "R" appears in the menu bar. Hover any running app in the Dock.
 
 > **Permission on but Ronic DockPane still says it's not granted?** Each new build is a new app for macOS. Turn the toggle off and on, or remove Ronic DockPane from the list with **−** and open it again.
 
@@ -62,7 +62,7 @@
 1. A global `mouseMoved` monitor watches the pointer. Nothing else runs while it stays away from the Dock.
 2. When the pointer enters the strip along the Dock's edge (bottom, left or right, read from the Dock's settings), Ronic DockPane asks the Accessibility API which Dock icon is under it. At most one query runs every 90 ms, off the main thread.
 3. The icon is matched to a running app, and its windows are read through `kAXWindowsAttribute`. Only standard windows with a title are kept, and minimized windows are included.
-4. One or more windows → a floating panel opens next to the icon. It doesn't take focus from the app you're using.
+4. A floating panel opens next to the icon. It doesn't take focus from the app you're using.
 5. With Screen Recording granted, a thumbnail of each window is captured with ScreenCaptureKit (one still image per window, only while the panel is open). The panel appears immediately with placeholders and the thumbnails fill in as they arrive. On macOS 13 the panel shows a plain list of titles instead.
 6. Hovering a card shows a red ✕ that closes that window for real (it presses the window's own close button, so the app may still ask to save). Clicking a window unminimizes it if needed, raises it, activates its app, and closes the panel. The panel also closes about 250 ms after the pointer leaves both the icon and the panel, which gives you time to move between them.
 
@@ -71,10 +71,10 @@
 The minimum number of windows is set in `Sources/DockPane/DockPaneApp.swift`:
 
 ```swift
-private let panel = FloatingPanelController(minimumWindows: 1)
+private let panel = FloatingPanelController(minimumWindows: 0)
 ```
 
-Set it to `2` to show the panel only for apps with several windows.
+With `0`, an app that is still running with no windows (you closed them with the red button) shows a card: click it to open a new window, or use ✕ to quit the app. Set it to `1` to skip those apps, or `2` to show the panel only for apps with several windows.
 
 ## Privacy
 

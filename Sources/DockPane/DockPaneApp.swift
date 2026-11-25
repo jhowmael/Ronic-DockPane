@@ -18,16 +18,16 @@ struct DockPaneApp: App {
     }
 }
 
-/// The app logo (two stacked windows above a Dock bar) as a monochrome template for the menu bar.
+/// The Ronic "R" with the little Dock bar from the logo, as a monochrome template for the menu bar.
 enum MenuBarIcon {
     static let image: NSImage = {
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
-            NSColor.black.set()
-            let back = NSBezierPath(roundedRect: NSRect(x: 2, y: 8.5, width: 9, height: 7), xRadius: 1.8, yRadius: 1.8)
-            back.lineWidth = 1.3
-            back.stroke()
-            NSBezierPath(roundedRect: NSRect(x: 5.5, y: 6, width: 10.5, height: 7.5), xRadius: 1.8, yRadius: 1.8).fill()
-            NSBezierPath(roundedRect: NSRect(x: 3, y: 1, width: 12, height: 3.2), xRadius: 1.6, yRadius: 1.6).fill()
+            let base = NSFont.systemFont(ofSize: 15, weight: .black)
+            let font = base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: 15) } ?? base
+            let letter = NSAttributedString(string: "R", attributes: [.font: font, .foregroundColor: NSColor.black])
+            letter.draw(at: NSPoint(x: 0.5, y: (18 - letter.size().height) / 2 + 0.5))
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: NSRect(x: 11.8, y: 2.6, width: 5.8, height: 2.6), xRadius: 1.3, yRadius: 1.3).fill()
             return true
         }
         image.isTemplate = true
@@ -129,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let dockMonitor = DockMonitor()
     /// Panels with fewer windows than this are not shown. Change here to adjust the threshold.
-    private let panel = FloatingPanelController(minimumWindows: 1)
+    private let panel = FloatingPanelController(minimumWindows: 0)
     private var activationObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
