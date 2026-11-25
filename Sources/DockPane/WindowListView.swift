@@ -177,7 +177,7 @@ private struct AppCard: View {
         }
         .foregroundStyle(isHovered ? Color.white : Color.primary)
         .padding(8)
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: .topLeading) {
             if isHovered {
                 Button(action: onQuit) {
                     Image(systemName: "xmark")
@@ -238,7 +238,7 @@ private struct PreviewCard: View {
         }
         .foregroundStyle(isHovered ? Color.white : Color.primary)
         .padding(8)
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: .topLeading) {
             if isHovered {
                 Button { onClose(window) } label: {
                     Image(systemName: "xmark")
