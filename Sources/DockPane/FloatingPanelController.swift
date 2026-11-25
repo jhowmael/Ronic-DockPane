@@ -423,8 +423,9 @@ final class FloatingPanelController {
     /// Places the panel just outside the icon, on the side facing the screen centre, and keeps it on screen.
     private func frame(for app: DockedApp, size: CGSize) -> NSRect {
         let icon = reach(of: app)
-        // Close to the icon, like the Windows taskbar previews, with room for the app name the Dock shows.
-        let gap: CGFloat = app.edge == .bottom ? 16 : 10
+        // Above a bottom Dock, the app-name label the Dock draws over the icon fits entirely between the
+        // icon and the panel, so it never overlaps the panel's edge.
+        let gap: CGFloat = app.edge == .bottom ? 34 : 10
         let screen = NSScreen.screens.first(where: { $0.frame.intersects(icon) }) ?? NSScreen.main
         let bounds = screen?.visibleFrame ?? icon
 
