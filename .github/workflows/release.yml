@@ -28,7 +28,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: dist/DockPane-macOS.zip
+          path: dist/RonicDockPane-macOS.zip
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
@@ -43,14 +43,14 @@ jobs:
       - name: Publish the Release
         uses: softprops/action-gh-release@v2
         with:
-          name: DockPane ${{ github.ref_name }}
+          name: Ronic DockPane ${{ github.ref_name }}
           generate_release_notes: true
           body: |
             ## Download
             | System | File |
             |---|---|
-            | macOS 13+ (Apple Silicon and Intel) | **DockPane-macOS.zip** |
+            | macOS 13+ (Apple Silicon and Intel) | **RonicDockPane-macOS.zip** |
 
             Installation and permissions: see the [README](https://github.com/jhowmael/Ronic-DockPane#installation).
           files: |
-            dist/DockPane-macOS.zip
+            dist/RonicDockPane-macOS.zip

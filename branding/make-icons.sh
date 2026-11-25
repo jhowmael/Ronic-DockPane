@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generates the DockPane logo and icons from branding/make-logo.swift.
+# Generates the Ronic DockPane logo and icons from branding/make-logo.swift.
 # Run on macOS:  ./branding/make-icons.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

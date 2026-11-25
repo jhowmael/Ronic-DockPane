@@ -5,15 +5,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>DockPane</string>
+	<string>Ronic DockPane</string>
 	<key>CFBundleExecutable</key>
 	<string>DockPane</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>io.github.jhowmael.dockpane</string>
+	<string>io.github.jhowmael.ronicdockpane</string>
 	<key>CFBundleName</key>
-	<string>DockPane</string>
+	<string>Ronic DockPane</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

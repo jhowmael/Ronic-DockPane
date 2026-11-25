@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Packages DockPane for macOS:
-#   dist/DockPane.app
-#   dist/DockPane-macOS.zip   (ready to attach to GitHub Releases)
+# Packages Ronic DockPane for macOS:
+#   dist/RonicDockPane.app
+#   dist/RonicDockPane-macOS.zip   (ready to attach to GitHub Releases)
 #
 # Optional variables:
 #   VERSION=0.2.0            version written to Info.plist
@@ -25,9 +25,9 @@ if [[ -z "${SIGN_IDENTITY:-}" ]]; then
   fi
 fi
 DIST="$ROOT/dist"
-APP="$DIST/DockPane.app"
+APP="$DIST/RonicDockPane.app"
 
-echo "==> DockPane $VERSION (macOS)"
+echo "==> Ronic DockPane $VERSION (macOS)"
 rm -rf "$APP"
 mkdir -p "$DIST"
 
@@ -59,7 +59,7 @@ codesign "${SIGN_FLAGS[@]}" "$APP"
 codesign --verify --deep --strict "$APP"
 
 # 4) Zip for GitHub Releases (ditto keeps the signature and attributes)
-ZIP="$DIST/DockPane-macOS.zip"
+ZIP="$DIST/RonicDockPane-macOS.zip"
 rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 

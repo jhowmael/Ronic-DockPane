@@ -7,7 +7,7 @@ struct DockPaneApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("DockPane", systemImage: "rectangle.stack") {
+        MenuBarExtra("Ronic DockPane", systemImage: "rectangle.stack") {
             MenuContent(state: appDelegate.state, onGrant: appDelegate.showPermissionAlert)
         }
         .menuBarExtraStyle(.menu)
@@ -140,11 +140,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         let alert = NSAlert()
-        alert.messageText = "DockPane precisa da permissão de Acessibilidade"
+        alert.messageText = "Ronic DockPane precisa da permissão de Acessibilidade"
         alert.informativeText = """
-        Para ler os ícones do Dock e a lista de janelas, o DockPane precisa de acesso de Acessibilidade.
+        Para ler os ícones do Dock e a lista de janelas, o Ronic DockPane precisa de acesso de Acessibilidade.
 
-        Em Ajustes do Sistema › Privacidade e Segurança › Acessibilidade, ative o DockPane.
+        Em Ajustes do Sistema › Privacidade e Segurança › Acessibilidade, ative o Ronic DockPane.
 
         O app não grava a tela nem captura imagens das janelas.
         """

@@ -38,7 +38,7 @@ enum AccessibilityHelper {
 
     static var isTrusted: Bool { AXIsProcessTrusted() }
 
-    /// Lists DockPane in Privacy & Security › Accessibility and shows the system prompt.
+    /// Lists Ronic DockPane in Privacy & Security › Accessibility and shows the system prompt.
     static func requestTrust() {
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)

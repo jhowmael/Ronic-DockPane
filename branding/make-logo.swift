@@ -1,4 +1,4 @@
-// Draws the DockPane logo (1024×1024 PNG): two stacked window cards above a Dock bar.
+// Draws the Ronic DockPane logo (1024×1024 PNG): two stacked window cards above a Dock bar.
 //
 //   swift branding/make-logo.swift branding/out/logo-1024.png
 import AppKit
