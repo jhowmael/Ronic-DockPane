@@ -2,6 +2,7 @@
 # Packages Ronic DockPane for macOS:
 #   dist/RonicDockPane.app
 #   dist/RonicDockPane-macOS.zip   (ready to attach to GitHub Releases)
+#   dist/RonicDockPane.dmg         (drag-and-drop installer)
 #
 # Optional variables:
 #   VERSION=0.2.0            version written to Info.plist
@@ -15,7 +16,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${VERSION:-0.2.5}"
+VERSION="${VERSION:-0.2.6}"
 if [[ -z "${SIGN_IDENTITY:-}" ]]; then
   if [[ -n "${CI:-}" ]]; then
     SIGN_IDENTITY="-"
@@ -63,8 +64,19 @@ ZIP="$DIST/RonicDockPane-macOS.zip"
 rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 
+# 5) Drag-and-drop installer: the app next to a shortcut to /Applications
+DMG="$DIST/RonicDockPane.dmg"
+STAGE="$DIST/dmg-stage"
+rm -rf "$STAGE" "$DMG"
+mkdir -p "$STAGE"
+ditto "$APP" "$STAGE/RonicDockPane.app"
+ln -s /Applications "$STAGE/Applications"
+hdiutil create -volname "Ronic DockPane" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+rm -rf "$STAGE"
+
 echo
 echo "Done:"
 echo "  App: $APP"
 echo "  Zip: $ZIP"
+echo "  Dmg: $DMG"
 echo "Open with: open \"$APP\""

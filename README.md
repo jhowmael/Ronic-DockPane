@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jhowmael/Ronic-DockPane/releases/latest/download/RonicDockPane-macOS.zip">
+  <a href="https://github.com/jhowmael/Ronic-DockPane/releases/latest/download/RonicDockPane.dmg">
     <img src="https://img.shields.io/badge/Download-macOS-7C5CFF?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS">
   </a>
 </p>
@@ -32,7 +32,7 @@
 
 | System | File | Requirements |
 |---|---|---|
-| **macOS** (Apple Silicon and Intel) | [`RonicDockPane-macOS.zip`](https://github.com/jhowmael/Ronic-DockPane/releases/latest/download/RonicDockPane-macOS.zip) | macOS 13 Ventura or later |
+| **macOS** (Apple Silicon and Intel) | [`RonicDockPane.dmg`](https://github.com/jhowmael/Ronic-DockPane/releases/latest/download/RonicDockPane.dmg) (installer) · [`.zip`](https://github.com/jhowmael/Ronic-DockPane/releases/latest/download/RonicDockPane-macOS.zip) | macOS 13 Ventura or later |
 
 * **Menu bar only.** No icon in the Dock and no app menu.
 * **Permissions:** Accessibility is required. Screen Recording turns on the thumbnails; until you grant it, each card shows the app icon and the panel offers a button to enable previews.
@@ -40,7 +40,7 @@
 
 ## Installation
 
-1. Download `RonicDockPane-macOS.zip`, unzip it, and drag **RonicDockPane.app** into **Applications**.
+1. Download `RonicDockPane.dmg`, open it, and drag **RonicDockPane** onto the **Applications** shortcut. (Or download the `.zip`, unzip it, and move the app to **Applications**.)
 2. Open the app. The first time, macOS may block it: go to **System Settings › Privacy & Security** and click **Open Anyway**. From the Terminal: `xattr -dr com.apple.quarantine /Applications/RonicDockPane.app`.
 3. Grant **Accessibility**: in **System Settings › Privacy & Security › Accessibility**, turn on **Ronic DockPane**. Ronic DockPane shows an alert that opens that pane for you.
 4. Optional: turn on **Screen Recording** for window previews. Ronic DockPane asks once and opens the pane for you. In **System Settings › Privacy & Security › Screen & System Audio Recording**, turn on **Ronic DockPane**, then choose **Already enabled: relaunch** (*Já ativei: reabrir o app*) in the menu, because macOS only applies the permission to a fresh launch.
@@ -100,7 +100,7 @@ Requires macOS 13+ and Xcode 15 or later (or only the Command Line Tools, for `m
 
 ```bash
 make dev          # run with 'swift run'
-make app          # dist/RonicDockPane.app + dist/RonicDockPane-macOS.zip
+make app          # dist/RonicDockPane.app + .zip + .dmg installer
 make universal    # universal binary (requires full Xcode)
 make icons        # regenerate the logo and AppIcon.icns
 make screenshots  # re-render docs/preview.png
