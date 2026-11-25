@@ -1,0 +1,122 @@
+<p align="center">
+  <img src="branding/logo.png" alt="DockPane" width="160">
+</p>
+
+<h1 align="center">DockPane</h1>
+
+<p align="center">
+  <b>Hover an app in the Dock and see its open windows, then jump straight to one.</b><br>
+  Native Swift · no third-party dependencies · no screen capture · menu bar only
+</p>
+
+<p align="center">
+  <a href="https://github.com/jhowmael/Ronic-DockPane/releases/latest/download/DockPane-macOS.zip">
+    <img src="https://img.shields.io/badge/Download-macOS-7C5CFF?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/jhowmael/Ronic-DockPane/releases">All releases</a> ·
+  <a href="#installation">Installation</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#building">Build</a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshot.png" alt="DockPane panel listing the windows of an app" width="420">
+</p>
+
+---
+
+## Download
+
+| System | File | Requirements |
+|---|---|---|
+| **macOS** (Apple Silicon and Intel) | [`DockPane-macOS.zip`](https://github.com/jhowmael/Ronic-DockPane/releases/latest/download/DockPane-macOS.zip) | macOS 13 Ventura or later |
+
+* **Menu bar only.** No icon in the Dock and no app menu.
+* **Only one permission:** Accessibility. DockPane never records or captures the screen.
+* **Idle cost is minimal.** There are no timers and no polling. The mouse is watched through an event monitor, and the Dock is queried only while the pointer is on the Dock's edge.
+
+## Installation
+
+1. Download `DockPane-macOS.zip`, unzip it, and drag **DockPane.app** into **Applications**.
+2. Open the app. The first time, macOS may block it: go to **System Settings › Privacy & Security** and click **Open Anyway**. From the Terminal: `xattr -dr com.apple.quarantine /Applications/DockPane.app`.
+3. Grant **Accessibility**: in **System Settings › Privacy & Security › Accessibility**, turn on **DockPane**. DockPane shows an alert that opens that pane for you.
+4. Done. The stacked-windows icon appears in the menu bar. Hover an app in the Dock that has two or more windows.
+
+> **Permission on but DockPane still says it's not granted?** Each new build is a new app for macOS. Turn the toggle off and on, or remove DockPane from the list with **−** and open it again.
+
+### Menu bar
+
+| Item | What it does |
+|---|---|
+| **Accessibility** status | Shows whether the permission is granted. **Grant permission…** appears when it isn't. |
+| **Launch at login** (*Iniciar com o macOS*) | Adds or removes DockPane from the system's login items (`SMAppService`). |
+| **Quit** (*Sair*) | Quits DockPane. |
+
+## How it works
+
+1. A global `mouseMoved` monitor watches the pointer. Nothing else runs while it stays away from the Dock.
+2. When the pointer enters the strip along the Dock's edge (bottom, left or right, read from the Dock's settings), DockPane asks the Accessibility API which Dock icon is under it. At most one query runs every 90 ms, off the main thread.
+3. The icon is matched to a running app, and its windows are read through `kAXWindowsAttribute`. Only standard windows with a title are kept, and minimized windows are included.
+4. Two or more windows → a floating panel opens next to the icon. It doesn't take focus from the app you're using.
+5. Clicking a window unminimizes it if needed, raises it, activates its app, and closes the panel. The panel also closes about 250 ms after the pointer leaves both the icon and the panel, which gives you time to move between them.
+
+## Settings
+
+The minimum number of windows is set in `Sources/DockPane/DockPaneApp.swift`:
+
+```swift
+private let panel = FloatingPanelController(minimumWindows: 2)
+```
+
+Set it to `1` to also show the panel for apps with a single window.
+
+## Privacy
+
+* DockPane does not use ScreenCaptureKit or any screen-recording API, so it never asks for **Screen Recording**.
+* It makes no network connections and writes no files, apart from the optional login item.
+* Window titles stay in memory and are never stored or sent anywhere.
+
+## Building
+
+Requires macOS 13+ and Xcode 15 or later (or only the Command Line Tools, for `make dev` and `make app`).
+
+### In Xcode
+
+1. Open Xcode, then **File ▸ Open…** and select **`Package.swift`** in this folder. Xcode opens the package as a project.
+2. Choose the **DockPane** scheme and the **My Mac** destination.
+3. Select the **DockPane** target, open **Signing & Capabilities**, and pick your team (or **Sign to Run Locally**).
+4. **App Sandbox:** this package doesn't enable it, so nothing needs changing. If you move the code into an Xcode *App* target, remove the **App Sandbox** capability (the trash icon in *Signing & Capabilities*). The Accessibility APIs don't work from a sandboxed app.
+5. **Info.plist:** `LSUIElement` is already `YES` in `Resources/Info.plist`. Running from Xcode launches the bare binary, so the app also sets the accessory activation policy in code and stays out of the Dock. **Launch at login** works only from the packaged `.app` in `/Applications`.
+6. Press **⌘R**. When the alert appears, grant Accessibility, then bring DockPane to the front again (for example, click its menu bar icon).
+
+### From the Terminal
+
+```bash
+make dev          # run with 'swift run'
+make app          # dist/DockPane.app + dist/DockPane-macOS.zip
+make universal    # universal binary (requires full Xcode)
+make icons        # regenerate the logo and AppIcon.icns
+make screenshots  # re-render docs/screenshot.png
+```
+
+`scripts/package-macos.sh` signs the app with a local certificate (`scripts/dev-signing.sh`), so the Accessibility permission survives rebuilds. On CI it uses ad-hoc signing.
+
+## Project layout
+
+```
+Package.swift                              SwiftPM package (opens in Xcode)
+Resources/Info.plist                       LSUIElement = YES (menu bar only)
+Resources/AppIcon.icns                     app icon
+Sources/DockPane/
+  DockPaneApp.swift                        MenuBarExtra, launch at login, app delegate
+  DockMonitor.swift                        global mouse monitor, throttled Dock hit tests
+  AccessibilityHelper.swift                AX: trust, Dock items, windows, raise
+  FloatingPanelController.swift            NSPanel (nonactivating), positioning, close delay
+  WindowListView.swift                     SwiftUI list with hover highlight
+branding/                                  logo and icon generators
+scripts/                                   packaging and signing
+.github/workflows/release.yml              builds the .zip and publishes it on "v*" tags
+```
