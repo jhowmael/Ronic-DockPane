@@ -79,6 +79,16 @@ final class FloatingPanel: NSPanel {
         }
     }
 
+    /// Moves a visible panel smoothly, following the Dock as it grows or shrinks back.
+    func move(to target: NSRect) {
+        guard isVisible, !isDismissing, target != frame else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = reduceMotion ? 0 : 0.24
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0.1, 0.25, 1)
+            animator().setFrame(target, display: true)
+        }
+    }
+
     /// Hides the panel at once and lets a picture of it shrink smoothly into the Dock icon.
     func dismiss(into icon: CGRect, edge: DockEdge, content: NSView) {
         guard isVisible, !isDismissing else { return }
@@ -132,6 +142,9 @@ final class FloatingPanelController {
     private var loadToken = 0
     private var previewToken = 0
     private var closeWork: DispatchWorkItem?
+    /// The pointer left the Dock, which shrank back: the panel sits right above the Dock instead of above the
+    /// magnified icon and its name label.
+    private var isResting = false
 
     /// The last window list and thumbnails seen per app. Hovering an icon shows them at once and refreshes them
     /// in the background, so the panel keeps up with a pointer sweeping along the Dock.
@@ -162,7 +175,13 @@ final class FloatingPanelController {
 
         // Same app: keep the panel where it opened. Re-anchoring to the icon would make it drift
         // as the Dock's magnification grows and shrinks the icon under the moving pointer.
-        if shownApp?.pid == app.pid { return }
+        if shownApp?.pid == app.pid {
+            if isResting, panel.isVisible {
+                isResting = false
+                panel.move(to: frame(for: app, size: panel.frame.size))
+            }
+            return
+        }
         guard app.pid != skippedPID else { return }
 
         // Known app: show what we saw last time right now; the fresh list replaces it if anything changed.
@@ -192,8 +211,15 @@ final class FloatingPanelController {
 
     /// Any mouse move on the system. Starts the close countdown when the pointer is away from the Dock and the panel.
     func pointerMoved() {
-        guard panel.isVisible, closeWork == nil, !dockHovering else { return }
-        if panel.frame.contains(NSEvent.mouseLocation) { return }
+        guard panel.isVisible, !dockHovering else { return }
+        let pointer = NSEvent.mouseLocation
+        // Past the magnified icons the Dock shrinks back, so the panel comes down to meet the pointer.
+        if !isResting, !panel.isDismissing, let app = shownApp, hasLeftDock(pointer, app) {
+            isResting = true
+            panel.move(to: restingFrame(for: app, size: panel.frame.size))
+        }
+        guard closeWork == nil else { return }
+        if panel.frame.contains(pointer) { return }
         scheduleCloseCheck()
     }
 
@@ -245,6 +271,7 @@ final class FloatingPanelController {
 
     private func present(app: DockedApp, windows: [AppWindow]) {
         shownApp = app
+        isResting = false
 
         let supported = WindowPreviewProvider.isSupported
         let authorized = WindowPreviewProvider.isAuthorized
@@ -318,7 +345,7 @@ final class FloatingPanelController {
             let origin = panel.frame.origin
             let source = CGRect(x: origin.x + card.minX, y: origin.y + hosting.frame.height - card.maxY,
                                 width: card.width, height: card.height)
-            GenieEffect.play(piece, from: source, into: app.itemFrame, edge: app.edge, level: panel.level)
+            GenieEffect.play(piece, from: source, into: iconTarget(for: app), edge: app.edge, level: panel.level)
         }
 
         model.windows.removeAll { $0.id == window.id }
@@ -328,7 +355,7 @@ final class FloatingPanelController {
         hosting.layoutSubtreeIfNeeded()
         let size = hosting.fittingSize
         hosting.frame = NSRect(origin: .zero, size: size)
-        panel.present(at: frame(for: app, size: size))
+        panel.present(at: isResting ? restingFrame(for: app, size: size) : frame(for: app, size: size))
     }
 
     /// Asks a running app with no windows to open one, like clicking its Dock icon (the "reopen" event).
@@ -358,11 +385,12 @@ final class FloatingPanelController {
         Debug.log("hide panel")
         cancelCloseCheck()
         if intoDock, let app = shownApp, let hosting = hostingView {
-            panel.dismiss(into: app.itemFrame, edge: app.edge, content: hosting)
+            panel.dismiss(into: iconTarget(for: app), edge: app.edge, content: hosting)
         } else {
             panel.dismiss()
         }
         shownApp = nil
+        isResting = false
         loadingPID = nil
         loadToken += 1
         previewToken += 1
@@ -395,6 +423,60 @@ final class FloatingPanelController {
         case .bottom: return CGVector(dx: 0, dy: -8)
         case .left: return CGVector(dx: -8, dy: 0)
         case .right: return CGVector(dx: 8, dy: 0)
+        }
+    }
+
+    private func screen(for app: DockedApp) -> NSScreen? {
+        NSScreen.screens.first(where: { $0.frame.intersects(app.itemFrame) }) ?? NSScreen.main
+    }
+
+    /// Whether the pointer has gone past the (fully magnified) icons, away from the screen edge.
+    private func hasLeftDock(_ pointer: CGPoint, _ app: DockedApp) -> Bool {
+        let reach = reach(of: app)
+        switch app.edge {
+        case .bottom: return pointer.y > reach.maxY
+        case .left: return pointer.x > reach.maxX
+        case .right: return pointer.x < reach.minX
+        }
+    }
+
+    /// Same place along the Dock, but right above the Dock at its normal size (its edge is where the
+    /// screen's visible area ends).
+    private func restingFrame(for app: DockedApp, size: CGSize) -> NSRect {
+        var frame = self.frame(for: app, size: size)
+        guard let visible = screen(for: app)?.visibleFrame else { return frame }
+        let gap: CGFloat = 10
+        switch app.edge {
+        case .bottom: frame.origin.y = min(frame.origin.y, visible.minY + gap)
+        case .left: frame.origin.x = min(frame.origin.x, visible.minX + gap)
+        case .right: frame.origin.x = max(frame.origin.x, visible.maxX - gap - size.width)
+        }
+        return frame
+    }
+
+    /// Where the close animation goes: the icon as it is now. Once the Dock has shrunk back, that is a
+    /// normal-size icon centred in the Dock, not the magnified frame seen on hover.
+    private func iconTarget(for app: DockedApp) -> CGRect {
+        let icon = app.itemFrame
+        guard isResting, let screen = screen(for: app) else { return icon }
+        let full = screen.frame
+        let visible = screen.visibleFrame
+        switch app.edge {
+        case .bottom:
+            let thickness = visible.minY - full.minY
+            guard thickness > 20 else { return icon }
+            let side = thickness * 0.72
+            return CGRect(x: icon.midX - side / 2, y: full.minY + (thickness - side) / 2, width: side, height: side)
+        case .left:
+            let thickness = visible.minX - full.minX
+            guard thickness > 20 else { return icon }
+            let side = thickness * 0.72
+            return CGRect(x: full.minX + (thickness - side) / 2, y: icon.midY - side / 2, width: side, height: side)
+        case .right:
+            let thickness = full.maxX - visible.maxX
+            guard thickness > 20 else { return icon }
+            let side = thickness * 0.72
+            return CGRect(x: visible.maxX + (thickness - side) / 2, y: icon.midY - side / 2, width: side, height: side)
         }
     }
 
