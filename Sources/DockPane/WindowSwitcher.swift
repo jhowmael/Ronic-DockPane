@@ -572,11 +572,11 @@ struct SwitcherView: View {
     let onHover: (Int) -> Void
     let onClose: (Int) -> Void
 
-    static let spacing: CGFloat = 6
+    static let spacing: CGFloat = 4
     /// A `PreviewCard`: the thumbnail plus its padding and title row.
     static var cardSize: CGSize {
         let thumb = WindowPreviewProvider.thumbnailSize
-        return CGSize(width: thumb.width + 16, height: thumb.height + 42)
+        return CGSize(width: thumb.width + 12, height: thumb.height + 37)
     }
 
     private var gridWidth: CGFloat {
@@ -603,7 +603,7 @@ struct SwitcherView: View {
             }
             footer
         }
-        .padding(8)
+        .padding(5)
     }
 
     private func card(at index: Int) -> some View {
@@ -633,7 +633,7 @@ struct SwitcherView: View {
             }
         }
         .lineLimit(1)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 6)
         .frame(width: gridWidth)
         .padding(.bottom, 2)
     }

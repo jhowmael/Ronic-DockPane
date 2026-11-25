@@ -40,7 +40,7 @@ struct WindowListView: View {
         VStack(alignment: .leading, spacing: 0) {
             if model.windows.isEmpty {
                 AppCard(app: model.app, onReopen: onReopenApp, onQuit: onQuitApp)
-                    .padding(8)
+                    .padding(5)
             } else if model.showPreviews {
                 // Each card already shows the app icon and the window title, so no header here.
                 cards
@@ -82,9 +82,9 @@ struct WindowListView: View {
         let rows = stride(from: 0, to: visible.count, by: columns).map {
             Array(visible[$0..<min($0 + columns, visible.count)])
         }
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 4) {
             ForEach(rows.indices, id: \.self) { index in
-                HStack(alignment: .top, spacing: 6) {
+                HStack(alignment: .top, spacing: 4) {
                     ForEach(rows[index]) { window in
                         PreviewCard(window: window, icon: model.app.icon,
                                     image: model.previews[window.id], onSelect: onSelect, onClose: onClose)
@@ -95,7 +95,7 @@ struct WindowListView: View {
                 Text("+\(model.windows.count - maxCards) mais")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 6)
             }
             if model.needsPermission {
                 Button(action: onEnablePreviews) {
@@ -111,7 +111,7 @@ struct WindowListView: View {
                 .padding(.top, 2)
             }
         }
-        .padding(8)
+        .padding(5)
     }
 
     // MARK: - Plain list (no Screen Recording permission)
@@ -158,7 +158,7 @@ private struct AppCard: View {
     private var size: CGSize { WindowPreviewProvider.thumbnailSize }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Image(nsImage: app.icon)
                     .resizable()
@@ -189,7 +189,7 @@ private struct AppCard: View {
             )
         }
         .foregroundStyle(isHovered ? Color.white : Color.primary)
-        .padding(8)
+        .padding(6)
         .overlay(alignment: .topLeading) {
             if isHovered {
                 Button(action: onQuit) {
@@ -233,7 +233,7 @@ struct PreviewCard: View {
     private var size: CGSize { WindowPreviewProvider.thumbnailSize }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Image(nsImage: icon)
                     .resizable()
@@ -256,7 +256,7 @@ struct PreviewCard: View {
                 )
         }
         .foregroundStyle(isHighlighted ? Color.white : Color.primary)
-        .padding(8)
+        .padding(6)
         .overlay(alignment: .topLeading) {
             if isHovered {
                 Button { onClose(window) } label: {

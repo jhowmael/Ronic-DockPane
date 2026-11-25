@@ -16,7 +16,7 @@ struct PreviewRequest {
 
 enum WindowPreviewProvider {
     /// Longest side of a thumbnail in points; captured at 2x.
-    static let thumbnailSize = CGSize(width: 220, height: 138)
+    static let thumbnailSize = CGSize(width: 192, height: 120)
 
     static var isSupported: Bool {
         if #available(macOS 14.0, *) { return true }
