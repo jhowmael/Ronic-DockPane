@@ -42,6 +42,7 @@ final class FloatingPanelController {
     private var skippedPID: pid_t?
     private var loadingPID: pid_t?
     private var loadToken = 0
+    private var previewToken = 0
     private var closeWork: DispatchWorkItem?
 
     init(minimumWindows: Int) {
@@ -116,7 +117,9 @@ final class FloatingPanelController {
     private func present(app: DockedApp, windows: [AppWindow]) {
         shownApp = app
 
-        let root = WindowListView(app: app, windows: windows) { [weak self] window in
+        let showPreviews = WindowPreviewProvider.isSupported && WindowPreviewProvider.isAuthorized
+        let model = PanelModel(app: app, windows: windows, showPreviews: showPreviews)
+        let root = WindowListView(model: model) { [weak self] window in
             self?.select(window, pid: app.pid)
         }
 
@@ -131,10 +134,20 @@ final class FloatingPanelController {
             hostingView = hosting
         }
 
+        // The panel opens right away with placeholders of the final size; thumbnails fill in when captured.
         let size = hosting.fittingSize
         panel.setContentSize(size)
         reposition(app)
         panel.orderFrontRegardless()
+
+        guard showPreviews else { return }
+        previewToken += 1
+        let token = previewToken
+        Task { @MainActor [weak self] in
+            let previews = await WindowPreviewProvider.previews(for: windows, pid: app.pid)
+            guard let self, token == self.previewToken, self.shownApp?.pid == app.pid else { return }
+            model.previews = previews
+        }
     }
 
     private func select(_ window: AppWindow, pid: pid_t) {
@@ -150,6 +163,7 @@ final class FloatingPanelController {
         shownApp = nil
         loadingPID = nil
         loadToken += 1
+        previewToken += 1
     }
 
     // MARK: - Closing

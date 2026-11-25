@@ -21,6 +21,8 @@ struct AppWindow: Identifiable {
     let id: Int
     let title: String
     let isMinimized: Bool
+    /// Frame in Accessibility coordinates (top-left origin); used to match the window to its capture.
+    let frame: CGRect?
     let element: AXUIElement
 }
 
@@ -119,7 +121,8 @@ enum AccessibilityHelper {
                   !title.isEmpty else { continue }
 
             let minimized: Bool = attribute(element, "AXMinimized") ?? false
-            result.append(AppWindow(id: result.count, title: title, isMinimized: minimized, element: element))
+            result.append(AppWindow(id: result.count, title: title, isMinimized: minimized,
+                                    frame: frame(of: element), element: element))
         }
         return result
     }

@@ -8,7 +8,9 @@ struct DockPaneApp: App {
 
     var body: some Scene {
         MenuBarExtra("Ronic DockPane", systemImage: "rectangle.stack") {
-            MenuContent(state: appDelegate.state, onGrant: appDelegate.showPermissionAlert)
+            MenuContent(state: appDelegate.state,
+                        onGrant: appDelegate.showPermissionAlert,
+                        onGrantScreen: appDelegate.showScreenRecordingAlert)
         }
         .menuBarExtraStyle(.menu)
     }
@@ -18,12 +20,20 @@ struct DockPaneApp: App {
 private struct MenuContent: View {
     @ObservedObject var state: AppState
     let onGrant: () -> Void
+    let onGrantScreen: () -> Void
 
     var body: some View {
         Text(state.isTrusted ? "Acessibilidade: concedida" : "Acessibilidade: não concedida")
 
         if !state.isTrusted {
             Button("Conceder permissão…", action: onGrant)
+        }
+
+        if WindowPreviewProvider.isSupported {
+            Text(state.hasScreenAccess ? "Prévias das janelas: ativas" : "Prévias das janelas: sem permissão")
+            if !state.hasScreenAccess {
+                Button("Ativar prévias (Gravação de Tela)…", action: onGrantScreen)
+            }
         }
 
         Divider()
@@ -44,10 +54,12 @@ private struct MenuContent: View {
 
 final class AppState: ObservableObject {
     @Published private(set) var isTrusted = AccessibilityHelper.isTrusted
+    @Published private(set) var hasScreenAccess = WindowPreviewProvider.isAuthorized
     @Published private(set) var launchAtLogin = LaunchAtLogin.isEnabled
 
     func refresh() {
         isTrusted = AccessibilityHelper.isTrusted
+        hasScreenAccess = WindowPreviewProvider.isAuthorized
         launchAtLogin = LaunchAtLogin.isEnabled
     }
 
@@ -121,6 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startMonitoringIfTrusted()
         if !state.isTrusted {
             showPermissionAlert()
+        } else {
+            askForScreenRecordingOnce()
         }
     }
 
@@ -158,24 +172,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+extension AppDelegate {
+    /// Asks only once at launch, so the app never nags. The menu keeps the option available.
+    fileprivate func askForScreenRecordingOnce() {
+        let key = "askedScreenRecording"
+        guard WindowPreviewProvider.isSupported, !WindowPreviewProvider.isAuthorized,
+              !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        showScreenRecordingAlert()
+    }
+
+    func showScreenRecordingAlert() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.messageText = "Ativar a prévia das janelas?"
+        alert.informativeText = """
+        Para mostrar uma miniatura de cada janela, o Ronic DockPane precisa da permissão de Gravação de Tela.
+
+        Em Ajustes do Sistema › Privacidade e Segurança › Gravação de Tela e Áudio do Sistema, ative o Ronic DockPane.
+
+        Sem ela, o painel continua funcionando com a lista de títulos. As imagens ficam só na memória e nada é gravado ou enviado.
+        """
+        alert.addButton(withTitle: "Abrir Ajustes")
+        alert.addButton(withTitle: "Agora não")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            WindowPreviewProvider.requestAccess()
+            WindowPreviewProvider.openSettings()
+        }
+    }
+}
+
 /// Renders the panel with sample windows to a PNG for the README: `DOCKPANE_SHOT=/path/file.png DockPane`.
+/// The thumbnails are drawn, not captured, so no real window content ends up in the repository.
 enum DemoScreenshot {
     static func write(to path: String) {
         let icon = NSWorkspace.shared.icon(forFile: "/System/Applications/Utilities/Terminal.app")
         let app = DockedApp(pid: 0, name: "Terminal", icon: icon, itemFrame: .zero, edge: .bottom)
 
-        let samples: [(title: String, minimized: Bool)] = [
-            ("~ — zsh", false),
-            ("ronic-dockpane — vim", false),
-            ("npm run dev — node", true),
-            ("logs — tail -f app.log", false),
+        let samples: [(title: String, minimized: Bool, tint: NSColor)] = [
+            ("~ — zsh", false, NSColor(srgbRed: 0.10, green: 0.11, blue: 0.14, alpha: 1)),
+            ("ronic-dockpane — vim", false, NSColor(srgbRed: 0.12, green: 0.16, blue: 0.22, alpha: 1)),
+            ("npm run dev — node", true, NSColor(srgbRed: 0.14, green: 0.13, blue: 0.18, alpha: 1)),
+            ("logs — tail -f app.log", false, NSColor(srgbRed: 0.09, green: 0.15, blue: 0.13, alpha: 1)),
         ]
-        let windows = samples.enumerated().map { index, sample in
-            AppWindow(id: index, title: sample.title, isMinimized: sample.minimized,
-                      element: AXUIElementCreateSystemWide())
+        var windows: [AppWindow] = []
+        var previews: [Int: NSImage] = [:]
+        for (index, sample) in samples.enumerated() {
+            windows.append(AppWindow(id: index, title: sample.title, isMinimized: sample.minimized,
+                                     frame: nil, element: AXUIElementCreateSystemWide()))
+            previews[index] = sampleThumbnail(tint: sample.tint, seed: index)
         }
 
-        let content = WindowListView(app: app, windows: windows) { _ in }
+        let model = PanelModel(app: app, windows: windows, showPreviews: true)
+        model.previews = previews
+
+        let content = WindowListView(model: model) { _ in }
             .background(Color(red: 0.13, green: 0.13, blue: 0.15))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(24)
@@ -208,5 +261,28 @@ enum DemoScreenshot {
 
         guard let png = rep.representation(using: .png, properties: [:]) else { return }
         try? png.write(to: URL(fileURLWithPath: path))
+    }
+
+    /// A drawn stand-in for a window capture: dark body with a title bar and a few lines of "text".
+    private static func sampleThumbnail(tint: NSColor, seed: Int) -> NSImage {
+        let size = WindowPreviewProvider.thumbnailSize
+        return NSImage(size: size, flipped: false) { rect in
+            tint.setFill()
+            rect.fill()
+            NSColor.white.withAlphaComponent(0.10).setFill()
+            NSRect(x: 0, y: rect.height - 16, width: rect.width, height: 16).fill()
+            let dots: [NSColor] = [.systemRed, .systemYellow, .systemGreen]
+            for (i, color) in dots.enumerated() {
+                color.setFill()
+                NSBezierPath(ovalIn: NSRect(x: 8 + CGFloat(i) * 12, y: rect.height - 12, width: 8, height: 8)).fill()
+            }
+            for line in 0..<7 {
+                let width = CGFloat(40 + ((line * 37 + seed * 23) % 110))
+                NSColor.white.withAlphaComponent(line % 3 == 0 ? 0.55 : 0.28).setFill()
+                NSBezierPath(roundedRect: NSRect(x: 12, y: rect.height - 36 - CGFloat(line) * 14, width: width, height: 5),
+                             xRadius: 2.5, yRadius: 2.5).fill()
+            }
+            return true
+        }
     }
 }
