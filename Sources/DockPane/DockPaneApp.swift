@@ -64,6 +64,11 @@ private struct MenuContent: View {
             get: { state.switcherEnabled },
             set: { state.setSwitcherEnabled($0) }
         ))
+        Toggle("Usar também no ⌘Tab", isOn: Binding(
+            get: { state.commandTabEnabled },
+            set: { state.setCommandTabEnabled($0) }
+        ))
+        .disabled(!state.switcherEnabled)
         Toggle("Iniciar com o macOS", isOn: Binding(
             get: { state.launchAtLogin },
             set: { state.setLaunchAtLogin($0) }
@@ -83,10 +88,20 @@ final class AppState: ObservableObject {
     @Published private(set) var hasScreenAccess = WindowPreviewProvider.isAuthorized
     @Published private(set) var launchAtLogin = LaunchAtLogin.isEnabled
     @Published private(set) var switcherEnabled = UserDefaults.standard.object(forKey: AppState.switcherKey) as? Bool ?? true
+    @Published private(set) var commandTabEnabled = UserDefaults.standard.object(forKey: AppState.commandTabKey) as? Bool ?? true
     /// Set by the app delegate to turn the ⌥Tab switcher on and off.
     var onSwitcherChange: (Bool) -> Void = { _ in }
+    /// Set by the app delegate: whether ⌘Tab opens the window switcher too.
+    var onCommandTabChange: (Bool) -> Void = { _ in }
 
     private static let switcherKey = "switcherEnabled"
+    private static let commandTabKey = "replaceCommandTab"
+
+    func setCommandTabEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: AppState.commandTabKey)
+        commandTabEnabled = enabled
+        onCommandTabChange(enabled)
+    }
 
     func setSwitcherEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: AppState.switcherKey)
@@ -186,6 +201,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onSwitcherChange = { [weak self] enabled in
             if enabled { self?.switcher.start() } else { self?.switcher.stop() }
         }
+        switcher.handlesCommandTab = state.commandTabEnabled
+        state.onCommandTabChange = { [weak self] enabled in self?.switcher.handlesCommandTab = enabled }
         // Waits for the Accessibility permission on its own if it is not granted yet.
         if state.switcherEnabled { switcher.start() }
 
@@ -417,7 +434,7 @@ enum DemoScreenshot {
                 colors: [Color(red: 0.22, green: 0.14, blue: 0.45), Color(red: 0.05, green: 0.30, blue: 0.50)],
                 startPoint: .topLeading, endPoint: .bottomTrailing
             )
-            SwitcherView(model: model, onSelect: { _ in }, onHover: { _ in }, onClose: { _ in })
+            SwitcherView(model: model, onSelect: { _ in }, onClose: { _ in })
                 .background(Color(red: 0.12, green: 0.12, blue: 0.14).opacity(0.94))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)

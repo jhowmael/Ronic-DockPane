@@ -20,14 +20,18 @@ app. O tap de teclado dele fica no nível HID, à frente de todos os outros, e c
 
 ## Decisão
 
-1. **CGEventTap de sessão** (`.cgSessionEventTap`, `.defaultTap`) para `keyDown`, `keyUp` e
-   `flagsChanged`, na run loop principal:
+1. **CGEventTap no nível HID** (`.cghidEventTap`, `.defaultTap`) para `keyDown`, `keyUp` e
+   `flagsChanged`, na run loop principal. É o ponto onde os eventos entram no window server, antes
+   dos atalhos do sistema; num tap de sessão o ⌘Tab chegaria depois de o macOS já ter aberto o
+   alternador de apps.
    - ⌥Tab abre o alternador ou avança; ⌥⇧Tab volta.
+   - ⌘Tab faz o mesmo, no lugar do alternador de apps do macOS (desde a 0.4.8, desligável no menu).
+     O modificador que abriu (⌥ ou ⌘) é o que precisa ser solto para trocar.
    - Com o alternador aberto, as teclas são engolidas: setas, Esc (cancela) e Enter (confirma).
-   - Soltar o ⌥ (`flagsChanged` sem `maskAlternate`) troca para a janela escolhida.
+   - Soltar o modificador (`flagsChanged` sem ele) troca para a janela escolhida.
    - Qualquer outra tecla passa intacta, e nenhuma tecla é gravada nem registrada em log.
-2. **Rede de segurança:** um timer de 250 ms, ativo só enquanto o alternador está aberto, lê
-   `CGEventSource.flagsState`. Se o ⌥ não estiver mais pressionado (um key-up perdido por entrada
+2. **Rede de segurança:** um timer de 500 ms, ativo só enquanto o alternador está aberto, lê
+   `CGEventSource.flagsState`. Se o modificador não estiver mais pressionado (um key-up perdido por entrada
    segura ou timeout do tap), o alternador fecha. Ele nunca fica preso engolindo o teclado.
 3. **Ordem das janelas** = ordem de empilhamento na tela (`CGWindowListCopyWindowInfo`, só limites
    e dono, sem precisar de Gravação de Tela), casada com as janelas da Acessibilidade pelo frame.
@@ -49,8 +53,11 @@ app. O tap de teclado dele fica no nível HID, à frente de todos os outros, e c
 - **`RegisterEventHotKey` (Carbon):** captura o ⌥Tab, mas não avisa quando o ⌥ é solto nem deixa
   engolir as setas. Seria preciso um monitor de teclado à parte, ou seja, outro mecanismo de qualquer jeito.
 - **`NSEvent.addGlobalMonitorForEvents`:** só observa, não consome. O Tab chegaria ao app da frente.
-- **Tap no nível HID, à frente do MacToWindows:** dependeria da ordem em que os apps abrem (o último
-  tap inserido na frente ganha). Frágil.
+- **Disputar o ⌥Tab com o MacToWindows só pela ordem dos taps:** os dois ficam no nível HID, e o
+  último tap inserido na frente ganha, o que depende da ordem em que os apps abrem. Por isso a
+  combinação é explícita, pela notificação.
+- **Desligar o ⌘Tab do sistema com API privada** (`CGSSetSymbolicHotKeyEnabled`), como fazem outros
+  alternadores: desnecessário, porque o tap HID consome o ⌘Tab antes de o sistema tratá-lo.
 - **APIs privadas de foco** (`_SLPSSetFrontProcessWithOptions`): mais confiáveis para trazer a janela,
   mas podem quebrar a cada versão do macOS. Em vez delas, além de `activate()`, o app marca
   `AXMain` na janela e `AXFrontmost` no app pela Acessibilidade, que já é permitida.

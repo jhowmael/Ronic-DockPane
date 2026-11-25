@@ -140,6 +140,32 @@ struct WindowListView: View {
     }
 }
 
+extension View {
+    /// Acts when the mouse button goes down. A tap only counts if press and release land on the same spot of the
+    /// view, so a click on a panel that is still gliding into place was lost; a press always counts, and it
+    /// answers a little sooner too. Buttons inside (the ✕) still get their own clicks.
+    func onPress(perform action: @escaping () -> Void) -> some View {
+        modifier(PressAction(action: action))
+    }
+}
+
+private struct PressAction: ViewModifier {
+    let action: () -> Void
+    @State private var isPressed = false
+
+    func body(content: Content) -> some View {
+        content.gesture(
+            DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                .onChanged { _ in
+                    guard !isPressed else { return }
+                    isPressed = true
+                    action()
+                }
+                .onEnded { _ in isPressed = false }
+        )
+    }
+}
+
 /// Collects each card's frame in the panel, keyed by window id.
 struct CardFramesKey: PreferenceKey {
     static let space = "panel"
@@ -202,7 +228,7 @@ private struct AppCard: View {
         )
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
-        .onTapGesture(perform: onReopen)
+        .onPress(perform: onReopen)
     }
 }
 
@@ -219,8 +245,14 @@ struct PreviewCard: View {
     var onHover: () -> Void = {}
     /// The small app icon before the title (the window switcher mixes apps; the Dock panel does not).
     var showsIcon = true
+    /// Set by the window switcher, which tracks the pointer itself. `nil` follows SwiftUI hover.
+    var pointerOver: Bool? = nil
+    /// Key for this card's frame in `CardFramesKey`; the window id by default.
+    var frameKey: Int? = nil
 
     @State private var isHovered = false
+
+    private var showsClose: Bool { pointerOver ?? isHovered }
 
     private var isHighlighted: Bool { isSelected ?? isHovered }
 
@@ -228,11 +260,25 @@ struct PreviewCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
+            // The close button lives in the title row, on the left like macOS window buttons: it takes the icon's
+            // place (or nudges the title aside), so it never covers the title.
             HStack(spacing: 6) {
-                if showsIcon {
+                if showsClose {
+                    Button { onClose(window) } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Color.white)
+                            .frame(width: 18, height: 18)
+                            .background(Circle().fill(Color.red.opacity(0.9)))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Fechar janela")
+                    .transition(.opacity.combined(with: .scale(scale: 0.6)))
+                } else if showsIcon {
                     Image(nsImage: icon)
                         .resizable()
                         .frame(width: 14, height: 14)
+                        .frame(width: 18, height: 18)
                 }
                 Text(window.title)
                     .font(.system(size: 12))
@@ -240,8 +286,9 @@ struct PreviewCard: View {
                     .truncationMode(.tail)
                 Spacer(minLength: 0)
             }
-            .padding(.leading, showsIcon ? 0 : 2)
-            .frame(width: size.width)
+            .padding(.leading, showsIcon || showsClose ? 0 : 2)
+            .frame(width: size.width, height: 18)
+            .animation(.easeOut(duration: 0.14), value: showsClose)
 
             thumbnail
                 .frame(width: size.width, height: size.height)
@@ -254,20 +301,6 @@ struct PreviewCard: View {
         }
         .foregroundStyle(isHighlighted ? Color.white : Color.primary)
         .padding(6)
-        .overlay(alignment: .topLeading) {
-            if isHovered {
-                Button { onClose(window) } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.white)
-                        .frame(width: 20, height: 20)
-                        .background(Circle().fill(Color.red.opacity(0.9)))
-                }
-                .buttonStyle(.plain)
-                .help("Fechar janela")
-                .padding(4)
-            }
-        }
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isHighlighted ? Color.accentColor.opacity(0.85) : Color.clear)
@@ -275,14 +308,14 @@ struct PreviewCard: View {
         .contentShape(Rectangle())
         .background(GeometryReader { proxy in
             Color.clear.preference(key: CardFramesKey.self,
-                                   value: [window.id: proxy.frame(in: .named(CardFramesKey.space))])
+                                   value: [frameKey ?? window.id: proxy.frame(in: .named(CardFramesKey.space))])
         })
         .help(window.title)
         .onHover { hovering in
             isHovered = hovering
             if hovering { onHover() }
         }
-        .onTapGesture { onSelect(window) }
+        .onPress { onSelect(window) }
     }
 
     @ViewBuilder
@@ -331,6 +364,6 @@ private struct WindowRow: View {
         )
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
-        .onTapGesture { onSelect(window) }
+        .onPress { onSelect(window) }
     }
 }

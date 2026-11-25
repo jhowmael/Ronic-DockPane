@@ -103,6 +103,11 @@ final class SwitcherHotKey {
         return code > 0 ? Int64(code) : Key.tab
     }()
 
+    /// ⌘Tab opens the window switcher too, instead of the macOS app switcher.
+    var handlesCommandTab = true
+    /// The modifier that opened the current switch (⌥ or ⌘). Letting go of it switches.
+    private(set) var sessionModifier: CGEventFlags = .maskAlternate
+
     /// Asked on every key event, on the main thread.
     var isActive: () -> Bool = { false }
     var onCommand: (Command) -> Void = { _ in }
@@ -118,7 +123,9 @@ final class SwitcherHotKey {
         let types: [CGEventType] = [.keyDown, .keyUp, .flagsChanged]
         let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
         guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
+            // The HID level is where events enter the window server, before system shortcuts such as ⌘Tab
+            // are handled; a session tap would see ⌘Tab only after the app switcher had opened.
+            tap: .cghidEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: mask,
@@ -154,29 +161,34 @@ final class SwitcherHotKey {
             return pass
 
         case .flagsChanged:
-            if isActive() && !event.flags.contains(.maskAlternate) { onCommand(.released) }
+            if isActive() && !event.flags.contains(sessionModifier) { onCommand(.released) }
             return pass
 
         case .keyDown, .keyUp:
             let flags = event.flags
             let key = event.getIntegerValueField(.keyboardEventKeycode)
-            let option = flags.contains(.maskAlternate)
+            let active = isActive()
 
-            if type == .keyDown, key == triggerKey, option,
-               !flags.contains(.maskCommand), !flags.contains(.maskControl) {
-                onCommand(flags.contains(.maskShift) ? .previous : .next)
-                return nil
+            if type == .keyDown, key == triggerKey, !flags.contains(.maskControl) {
+                let option = flags.contains(.maskAlternate)
+                let command = flags.contains(.maskCommand)
+                let opens: CGEventFlags? = option && !command ? .maskAlternate
+                    : command && !option && handlesCommandTab ? .maskCommand : nil
+                if let opens, !active || opens == sessionModifier {
+                    if !active { sessionModifier = opens }
+                    onCommand(flags.contains(.maskShift) ? .previous : .next)
+                    return nil
+                }
             }
-            guard isActive() else { return pass }
+            guard active else { return pass }
 
-            // Option was let go without us seeing it (secure input, for example): finish and let the key through.
-            if !option {
+            // The modifier was let go without us seeing it (secure input, for example): finish, let the key through.
+            if !flags.contains(sessionModifier) {
                 onCommand(.released)
                 return pass
             }
             if type == .keyDown {
                 switch key {
-                case triggerKey: onCommand(flags.contains(.maskShift) ? .previous : .next)
                 case Key.escape: onCommand(.cancel)
                 case Key.returnKey, Key.enter: onCommand(.commit)
                 case Key.left: onCommand(.left)
@@ -278,6 +290,18 @@ final class WindowSwitcher {
 
     /// Called when a switch begins, so the Dock panel steps aside.
     var onBegin: () -> Void = {}
+
+    /// ⌘Tab opens the window switcher too (on by default); off leaves ⌘Tab to macOS.
+    var handlesCommandTab: Bool {
+        get { hotKey.handlesCommandTab }
+        set { hotKey.handlesCommandTab = newValue }
+    }
+
+    /// Follows the pointer while the panel is open. SwiftUI hover events reach a panel of a background app late,
+    /// or not at all while the pointer stays inside one card, so the pointer is read directly at 60 Hz.
+    private var pointerTimer: Timer?
+    private var lastPointer = CGPoint.zero
+    private var pointerMoved = false
 
     var isActive: Bool { phase != .idle }
 
@@ -395,8 +419,6 @@ final class WindowSwitcher {
         let root = SwitcherView(model: model, onSelect: { [weak self] index in
             self?.model?.selection = index
             self?.finish()
-        }, onHover: { [weak self] index in
-            self?.hovered(index)
         }, onClose: { [weak self] index in
             self?.closeWindow(at: index)
         })
@@ -413,10 +435,42 @@ final class WindowSwitcher {
 
         phase = .shown
         pointerAtOpen = NSEvent.mouseLocation
+        lastPointer = pointerAtOpen
+        pointerMoved = false
         hosting.layoutSubtreeIfNeeded()
         let size = hosting.fittingSize
         hosting.frame = NSRect(origin: .zero, size: size)
         panel.present(at: centeredFrame(size: size))
+
+        pointerTimer?.invalidate()
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in self?.trackPointer() }
+        RunLoop.main.add(timer, forMode: .common)
+        pointerTimer = timer
+    }
+
+    /// The card under the pointer gets the selection and its ✕, once the pointer has moved since the panel
+    /// opened (a pointer resting where the panel appears changes nothing).
+    private func trackPointer() {
+        guard phase == .shown, let model, let hosting else { return }
+        let pointer = NSEvent.mouseLocation
+        guard pointer != lastPointer else { return }
+        lastPointer = pointer
+        if !pointerMoved {
+            guard hypot(pointer.x - pointerAtOpen.x, pointer.y - pointerAtOpen.y) > 2 else { return }
+            pointerMoved = true
+        }
+
+        // Card frames are reported by SwiftUI from the top-left of the content; the screen starts bottom-left.
+        let origin = panel.frame.origin
+        let height = hosting.frame.height
+        let hit = model.items.indices.first { index in
+            guard let card = model.cardFrames[model.items[index].id] else { return false }
+            let rect = CGRect(x: origin.x + card.minX, y: origin.y + height - card.maxY,
+                              width: card.width, height: card.height)
+            return rect.contains(pointer)
+        }
+        if model.pointerIndex != hit { model.pointerIndex = hit }
+        if let hit, model.selection != hit { model.selection = hit }
     }
 
     private func loadPreviews(for model: SwitcherModel, token: Int) {
@@ -444,12 +498,6 @@ final class WindowSwitcher {
         guard phase == .shown, let model else { return }
         let target = model.selection + delta * model.columns
         if model.items.indices.contains(target) { model.selection = target }
-    }
-
-    /// The pointer only picks a card once it has moved, so a pointer resting where the panel opens changes nothing.
-    private func hovered(_ index: Int) {
-        guard phase == .shown, let model, NSEvent.mouseLocation != pointerAtOpen else { return }
-        model.selection = index
     }
 
     /// Switches to the selected window.
@@ -486,6 +534,8 @@ final class WindowSwitcher {
         token += 1
         watchdog?.invalidate()
         watchdog = nil
+        pointerTimer?.invalidate()
+        pointerTimer = nil
         model = nil
         panel.dismiss()
     }
@@ -514,9 +564,9 @@ final class WindowSwitcher {
     /// A missed key-up (secure input, a tap timeout) must never leave the switcher open and swallowing keys.
     private func startWatchdog() {
         watchdog?.invalidate()
-        watchdog = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        watchdog = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self, self.isActive else { return }
-            if !CGEventSource.flagsState(.combinedSessionState).contains(.maskAlternate) {
+            if !CGEventSource.flagsState(.combinedSessionState).contains(self.hotKey.sessionModifier) {
                 self.finish()
             }
         }
@@ -551,6 +601,10 @@ final class SwitcherModel: ObservableObject {
     @Published var selection: Int
     /// Thumbnails keyed by `SwitcherItem.id`.
     @Published var previews: [Int: NSImage] = [:]
+    /// The card under the pointer, which shows its ✕.
+    @Published var pointerIndex: Int?
+    /// Where each card is drawn (top-left origin, in the panel), keyed by `SwitcherItem.id`. Not published.
+    var cardFrames: [Int: CGRect] = [:]
     let maxColumns: Int
     /// Windows that did not fit on the screen.
     let hiddenCount: Int
@@ -569,14 +623,13 @@ final class SwitcherModel: ObservableObject {
 struct SwitcherView: View {
     @ObservedObject var model: SwitcherModel
     let onSelect: (Int) -> Void
-    let onHover: (Int) -> Void
     let onClose: (Int) -> Void
 
     static let spacing: CGFloat = 4
     /// A `PreviewCard`: the thumbnail plus its padding and title row.
     static var cardSize: CGSize {
         let thumb = WindowPreviewProvider.thumbnailSize
-        return CGSize(width: thumb.width + 12, height: thumb.height + 37)
+        return CGSize(width: thumb.width + 12, height: thumb.height + 41)
     }
 
     private var gridWidth: CGFloat {
@@ -604,13 +657,16 @@ struct SwitcherView: View {
             footer
         }
         .padding(5)
+        .coordinateSpace(name: CardFramesKey.space)
+        .onPreferenceChange(CardFramesKey.self) { frames in model.cardFrames = frames }
     }
 
     private func card(at index: Int) -> some View {
         let item = model.items[index]
         return PreviewCard(window: item.window, icon: item.icon, image: model.previews[item.id],
                            onSelect: { _ in onSelect(index) }, onClose: { _ in onClose(index) },
-                           isSelected: index == model.selection, onHover: { onHover(index) })
+                           isSelected: index == model.selection, pointerOver: model.pointerIndex == index,
+                           frameKey: item.id)
             .id(item.id)
     }
 
