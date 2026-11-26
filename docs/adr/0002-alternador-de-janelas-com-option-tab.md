@@ -1,6 +1,11 @@
 # 0002 — Alternador de janelas no ⌥Tab, com CGEventTap e o Ronic MacToWindows
 
-Status: aceito (2026-11-25)
+Status: substituído (2026-11-26). O alternador foi removido na versão 0.5.0: interceptar o
+⌘Tab e o ⌥Tab no nível HID, com o tap na thread principal e leituras de Acessibilidade de todos os
+apps, fazia o ⌘Tab parar de funcionar e deixava o sistema lento, principalmente com jogos em tela
+cheia. O ⌘Tab e o ⌥Tab voltaram a ser do macOS (e do Ronic MacToWindows). Mantido como histórico.
+
+Status anterior: aceito (2026-11-25)
 Decisores: mantenedores do Ronic DockPane
 
 ## Contexto

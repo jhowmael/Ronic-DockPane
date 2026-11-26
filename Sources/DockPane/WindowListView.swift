@@ -232,20 +232,19 @@ private struct AppCard: View {
     }
 }
 
-/// One window as a thumbnail with its title above. Highlighted while the pointer is over it,
-/// or, in the window switcher, while it is the selected one.
+/// One window as a thumbnail with its title above. Highlighted while the pointer is over it.
 struct PreviewCard: View {
     let window: AppWindow
     let icon: NSImage
     let image: NSImage?
     let onSelect: (AppWindow) -> Void
     let onClose: (AppWindow) -> Void
-    /// Set by the window switcher, where the keyboard decides the highlight. `nil` follows the pointer.
+    /// Forces the highlight on or off. `nil` follows the pointer.
     var isSelected: Bool? = nil
     var onHover: () -> Void = {}
-    /// The small app icon before the title (the window switcher mixes apps; the Dock panel does not).
+    /// The small app icon before the title.
     var showsIcon = true
-    /// Set by the window switcher, which tracks the pointer itself. `nil` follows SwiftUI hover.
+    /// Set by a caller that tracks the pointer itself. `nil` follows SwiftUI hover.
     var pointerOver: Bool? = nil
     /// Key for this card's frame in `CardFramesKey`; the window id by default.
     var frameKey: Int? = nil

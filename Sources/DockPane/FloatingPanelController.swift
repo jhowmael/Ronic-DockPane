@@ -160,7 +160,7 @@ final class FloatingPanelController {
         self.minimumWindows = minimumWindows
     }
 
-    /// Hides the panel right away (for example when the window switcher opens).
+    /// Hides the panel right away.
     func hide() {
         if panel.isVisible { hidePanel() }
     }
